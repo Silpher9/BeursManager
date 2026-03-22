@@ -1,7 +1,12 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 
+import {
+  exportBackup,
+  performRestore,
+  pickAndValidateBackup,
+} from '@/src/domains/backup/backupService';
 import {
   getConfiguredFalKey,
   getDemoSeedSummary,
@@ -19,10 +24,14 @@ export default function SettingsScreen() {
   const [falKey, setFalKey] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState<'seed' | 'reset' | null>(null);
+  const [backupBusy, setBackupBusy] = useState<'export' | 'import' | null>(null);
+  const [backupStatus, setBackupStatus] = useState<string | null>(null);
   const configuredFalKey = getConfiguredFalKey();
   const seedSummary = getDemoSeedSummary();
   const effectiveFalKey = falKey.trim() || configuredFalKey;
   const usesConfiguredFalKey = falKey.trim().length === 0 && configuredFalKey.length > 0;
+
+  const anyBusy = busy !== null || backupBusy !== null;
 
   const handleSeed = async () => {
     setBusy('seed');
@@ -64,13 +73,125 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleExport = async () => {
+    setBackupBusy('export');
+    setBackupStatus(null);
+
+    try {
+      await exportBackup(db, (progress) => {
+        setBackupStatus(progress.message);
+      });
+      setBackupStatus('Backup succesvol aangemaakt.');
+    } catch (error) {
+      console.error('Export failed:', error);
+      setBackupStatus(
+        error instanceof Error
+          ? `Export mislukt: ${error.message}`
+          : 'Export mislukt.',
+      );
+    } finally {
+      setBackupBusy(null);
+    }
+  };
+
+  const handleImport = async () => {
+    setBackupBusy('import');
+    setBackupStatus(null);
+
+    try {
+      const manifest = await pickAndValidateBackup((progress) => {
+        setBackupStatus(progress.message);
+      });
+
+      if (!manifest) {
+        setBackupBusy(null);
+        setBackupStatus(null);
+        return;
+      }
+
+      const { stats } = manifest;
+      Alert.alert(
+        'Backup importeren',
+        `Dit overschrijft alle huidige data.\n\n` +
+          `De backup bevat:\n` +
+          `• ${stats.artworks} kunstwerken\n` +
+          `• ${stats.fairs} beurzen\n` +
+          `• ${stats.expenses} kosten\n` +
+          `• ${stats.contacts} contacten\n` +
+          `• ${stats.sales} verkopen\n\n` +
+          `Wil je doorgaan?`,
+        [
+          {
+            text: 'Annuleer',
+            style: 'cancel',
+            onPress: () => {
+              setBackupBusy(null);
+              setBackupStatus(null);
+            },
+          },
+          {
+            text: 'Importeer',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await performRestore(db, (progress) => {
+                  setBackupStatus(progress.message);
+                });
+
+                setBackupBusy(null);
+                setBackupStatus('Backup succesvol hersteld.');
+              } catch (restoreError) {
+                console.error('Restore failed:', restoreError);
+                setBackupBusy(null);
+                setBackupStatus(
+                  restoreError instanceof Error
+                    ? `Import mislukt: ${restoreError.message}`
+                    : 'Import mislukt.',
+                );
+              }
+            },
+          },
+        ],
+      );
+    } catch (error) {
+      console.error('Import validation failed:', error);
+      setBackupBusy(null);
+      setBackupStatus(
+        error instanceof Error
+          ? `Import mislukt: ${error.message}`
+          : 'Import mislukt.',
+      );
+    }
+  };
+
   return (
     <Screen scroll>
       <Card>
         <Text style={styles.title}>Instellingen</Text>
         <Text style={styles.body}>
-          Beheer je demo-data en voorkeuren.
+          Beheer je data, backup en voorkeuren.
         </Text>
+      </Card>
+      <Card>
+        <Text style={styles.sectionTitle}>Data beheer</Text>
+        <Text style={styles.body}>
+          Exporteer al je data als backup of importeer een eerdere backup.
+          De backup bevat je database, kunstwerkfoto's en bonnetje-afbeeldingen.
+        </Text>
+        <View style={styles.buttonRow}>
+          <AppButton
+            label={backupBusy === 'export' ? 'Bezig...' : 'Exporteer alles'}
+            onPress={handleExport}
+            disabled={anyBusy}
+          />
+          <AppButton
+            label={backupBusy === 'import' ? 'Bezig...' : 'Importeer backup'}
+            onPress={handleImport}
+            disabled={anyBusy}
+            variant="secondary"
+          />
+        </View>
+        {backupStatus ? <Text style={styles.statusText}>{backupStatus}</Text> : null}
       </Card>
       <Card>
         <Text style={styles.sectionTitle}>Demo-data</Text>
@@ -101,12 +222,12 @@ export default function SettingsScreen() {
                   : 'Voorbeelddata laden'
             }
             onPress={handleSeed}
-            disabled={busy !== null}
+            disabled={anyBusy}
           />
           <AppButton
             label={busy === 'reset' ? 'Bezig...' : 'Alles wissen'}
             onPress={handleReset}
-            disabled={busy !== null}
+            disabled={anyBusy}
             variant="secondary"
           />
         </View>

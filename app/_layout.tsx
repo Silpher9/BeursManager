@@ -7,12 +7,14 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
 import { migrateDbIfNeeded } from '@/src/db/migrate';
+import { setDatabaseReloadCallback } from '@/src/db/dbReload';
 import { ActiveFairDayBanner } from '@/src/shared/fair-day/ActiveFairDayBanner';
 import { FairDayModeProvider } from '@/src/shared/fair-day/FairDayModeProvider';
 import { LoadingView } from '@/src/shared/components/LoadingView';
 import { lightNavigationTheme } from '@/src/shared/theme/navigationTheme';
 
-export { ErrorBoundary } from 'expo-router';
+import { AppErrorBoundary } from '@/src/shared/components/AppErrorBoundary';
+export const ErrorBoundary = AppErrorBoundary;
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -22,10 +24,15 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [isClientReady, setIsClientReady] = useState(Platform.OS !== 'web');
+  const [dbKey, setDbKey] = useState(0);
 
   useEffect(() => {
     SplashScreen.hideAsync();
     setIsClientReady(true);
+  }, []);
+
+  useEffect(() => {
+    setDatabaseReloadCallback(() => setDbKey((k) => k + 1));
   }, []);
 
   if (!isClientReady) {
@@ -39,7 +46,7 @@ export default function RootLayout() {
   if (Platform.OS === 'web') {
     return (
       <ThemeProvider value={lightNavigationTheme}>
-        <WebSQLiteProvider>
+        <WebSQLiteProvider dbKey={dbKey}>
           <FairDayModeProvider>
             <View style={{ flex: 1 }}>
               <ActiveFairDayBanner />
@@ -59,6 +66,7 @@ export default function RootLayout() {
     <ThemeProvider value={lightNavigationTheme}>
       <Suspense fallback={<LoadingView label="App voorbereiden..." />}>
         <SQLiteProvider
+          key={dbKey}
           databaseName="beursmanager.db"
           onInit={migrateDbIfNeeded}
           options={{ enableChangeListener: true }}
@@ -79,7 +87,7 @@ export default function RootLayout() {
   );
 }
 
-function WebSQLiteProvider({ children }: { children: React.ReactNode }) {
+function WebSQLiteProvider({ children, dbKey }: { children: React.ReactNode; dbKey: number }) {
   const [dbError, setDbError] = useState<string | null>(null);
 
   const handleError = useCallback((error: Error) => {
@@ -107,6 +115,7 @@ function WebSQLiteProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <SQLiteProvider
+      key={dbKey}
       databaseName="beursmanager.db"
       onInit={migrateDbIfNeeded}
       options={{ enableChangeListener: true }}
