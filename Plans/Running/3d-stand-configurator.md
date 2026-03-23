@@ -75,47 +75,29 @@ Kunstenaars kunnen hun beursstand in 3D inrichten: wanden plaatsen, kunstwerken 
 
 ---
 
-## Fase 2d: Build/View Mode ✦ HUIDIGE FASE
-
-**Doel**: twee modi voor de editor — bouwmodus met labels/afmetingen en viewmodus voor presentatie.
-
-**Scope:**
-- Toggle build/view mode in sidebar
-- Build mode: wandlengtes als labels bovenop wanden
-- View mode: clean scene zonder helpers
+## Fase 2d: Build/View Mode ✅
 
 **DoD:**
-- [ ] Build/view mode toggle
-- [ ] Wandlengtes zichtbaar in build mode
-- [ ] Clean scene in view mode
+- [x] Build/view mode toggle
+- [x] Wandlengtes zichtbaar in build mode (BabylonJS GUI)
+- [x] Clean scene in view mode (geen gizmo's, labels, interactie)
 
 ---
 
-## Fase 2e: Undo/Redo
-
-**Doel**: command history voor wall acties.
-
-**Scope:**
-- Command pattern op wall add/remove/move/resize/snap
-- Undo/redo knoppen in sidebar
+## Fase 2e: Undo/Redo ✅
 
 **DoD:**
-- [ ] Undo/redo voor wall acties
-- [ ] UI knoppen in sidebar
+- [x] Model-first command history (max 50) met pre/post state snapshots
+- [x] Undo/redo voor add, remove, move, resize, snap
+- [x] UI knoppen in sidebar
 
 ---
 
-## Fase 2f: XZ-plane Drag Handle
-
-**Doel**: gecombineerd slepen over grondvlak via center handle.
-
-**Scope:**
-- Paars bolletje op gizmo origin
-- Drag beweegt wand over X en Z tegelijk
+## Fase 2f: XZ-plane Drag Handle ✅
 
 **DoD:**
-- [ ] Center handle op gizmo voor XZ-plane drag
-- [ ] Wanden snappen correct op positie + rotatie
+- [x] Center handle op gizmo voor XZ-plane drag (grondvlak)
+- [x] Undo/redo + snap detectie werkt mee
 
 ---
 

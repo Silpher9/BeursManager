@@ -1,7 +1,7 @@
 import { type SQLiteDatabase } from 'expo-sqlite';
 import { Platform } from 'react-native';
 
-const DATABASE_VERSION = 6;
+export const DATABASE_VERSION = 7;
 
 export async function migrateDbIfNeeded(db: SQLiteDatabase) {
   const result = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -11,6 +11,17 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
   if (Platform.OS !== 'web') {
     await db.execAsync('PRAGMA journal_mode = WAL;');
   }
+
+  // Idempotent: altijd aanmaken als tabel ontbreekt (dev-builds kunnen schema-version en tabelset uit sync raken)
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS stand_configurations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fair_id TEXT NOT NULL UNIQUE,
+      config_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (fair_id) REFERENCES fairs(id) ON DELETE CASCADE
+    );
+  `);
 
   if (currentDbVersion >= DATABASE_VERSION) {
     return;

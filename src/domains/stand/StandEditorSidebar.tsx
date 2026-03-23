@@ -1,4 +1,9 @@
-import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { useSQLiteContext } from 'expo-sqlite';
+
+import { listFairs } from '@/src/domains/fairs/repository';
+import type { FairListItem } from '@/src/domains/fairs/types';
 
 import { useStandEditor } from './StandEditorContext';
 
@@ -28,7 +33,18 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
     updateSnapDegrees,
     confirmSnapSuggestion,
     dismissSnapSuggestion,
+    selectedFairId,
+    selectFair,
+    saveCurrentConfig,
+    hasUnsavedChanges,
   } = useStandEditor();
+
+  const db = useSQLiteContext();
+  const [fairs, setFairs] = useState<FairListItem[]>([]);
+
+  useEffect(() => {
+    listFairs(db).then(setFairs);
+  }, [db]);
 
   const selectedWall = walls.find(w => w.id === selectedWallId);
 
@@ -37,6 +53,40 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
       <Pressable style={styles.backButton} onPress={onBack}>
         <Text style={styles.backText}>← Terug</Text>
       </Pressable>
+
+      <View style={styles.separator} />
+
+      <Text style={styles.label}>Beurs</Text>
+      <ScrollView style={styles.fairList} nestedScrollEnabled>
+        {fairs.map(fair => (
+          <Pressable
+            key={fair.id}
+            style={[styles.fairItem, selectedFairId === fair.id && styles.fairItemActive]}
+            onPress={() => selectFair(fair.id)}
+          >
+            <Text style={[styles.fairItemText, selectedFairId === fair.id && styles.fairItemTextActive]} numberOfLines={1}>
+              {fair.name}
+            </Text>
+          </Pressable>
+        ))}
+        {fairs.length === 0 && (
+          <Text style={styles.fairEmptyText}>Geen beurzen gevonden</Text>
+        )}
+      </ScrollView>
+
+      {selectedFairId && (
+        <>
+          <View style={styles.separator} />
+
+          <View style={styles.saveRow}>
+            <Pressable style={styles.saveButton} onPress={saveCurrentConfig}>
+              <Text style={styles.saveButtonText}>
+                {hasUnsavedChanges ? 'Opslaan *' : 'Opslaan'}
+              </Text>
+            </Pressable>
+          </View>
+        </>
+      )}
 
       <View style={styles.separator} />
 
@@ -272,6 +322,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
+  },
+  fairList: {
+    maxHeight: 120,
+  },
+  fairItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  fairItemActive: {
+    backgroundColor: 'rgba(255, 253, 249, 0.12)',
+  },
+  fairItemText: {
+    color: INACTIVE_TINT,
+    fontSize: 13,
+  },
+  fairItemTextActive: {
+    color: ACTIVE_TINT,
+    fontWeight: '700',
+  },
+  fairEmptyText: {
+    color: 'rgba(255, 253, 249, 0.3)',
+    fontSize: 12,
+    fontStyle: 'italic',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  saveRow: {
+    flexDirection: 'row',
+  },
+  saveButton: {
+    flex: 1,
+    backgroundColor: ACCENT,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   undoRedoRow: {
     flexDirection: 'row',

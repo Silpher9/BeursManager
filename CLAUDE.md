@@ -30,7 +30,7 @@ src/
     fair-day/         # Beursdag-modus context
     formatters.ts     # Gedeelde formatters
   db/
-    migrate.ts        # SQLite schema & migraties (versie 5)
+    migrate.ts        # SQLite schema & migraties (versie 7)
 tests/
   unit/               # Vitest tests
   e2e/                # Playwright tests + helpers.ts
@@ -55,8 +55,14 @@ Plans/                # Planningsdocumenten en backlog
 
 ## Database
 
-SQLite met tabellen: artists, artworks, fairs, fair_artworks, sales, expenses, contacts, contact_artworks.
+SQLite met tabellen: artists, artworks, fairs, fair_artworks, sales, expenses, contacts, contact_artworks, stand_configurations.
 Artwork statussen: beschikbaar, gereserveerd, ingepakt, op_beurs, verkocht.
+
+### Migratie-invariant
+
+Kern-tabellen die later zijn toegevoegd moeten **defensief/idempotent** aangemaakt worden via `CREATE TABLE IF NOT EXISTS`, **vóór** de `if (currentDbVersion >= DATABASE_VERSION) return;` early-return in `migrate.ts`.
+
+**Waarom:** Development builds kunnen `user_version` en feitelijke tabelset uit sync raken (bv. versie al op 7 maar tabel ontbreekt). Een versie-gated migratie slaat de tabel dan stilzwijgend over.
 
 ### Backup-restore lifecycle
 

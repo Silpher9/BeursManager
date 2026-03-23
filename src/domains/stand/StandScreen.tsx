@@ -19,7 +19,7 @@ export function StandScreen() {
   const { isTablet } = useResponsive();
   const insets = useSafeAreaInsets();
 
-  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedWallId, addWall, removeSelectedWall, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, registerWebView, registerIframe } = useStandEditor();
+  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedWallId, addWall, removeSelectedWall, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, replayTransforms, registerWebView, registerIframe } = useStandEditor();
 
   useEffect(() => {
     let cancelled = false;
@@ -52,13 +52,14 @@ export function StandScreen() {
   // Replay state naar WebView na (re)mount
   const replayState = useCallback(() => {
     walls.forEach(wall => sendMessage({ type: 'addWall', wall }));
+    replayTransforms();
     if (snapEnabled) {
       sendMessage({ type: 'setRotationSnap', enabled: true, degrees: snapDegrees });
     }
     if (editorMode !== 'build') {
       sendMessage({ type: 'setEditorMode', mode: editorMode });
     }
-  }, [walls, snapEnabled, snapDegrees, editorMode, sendMessage]);
+  }, [walls, snapEnabled, snapDegrees, editorMode, sendMessage, replayTransforms]);
 
   const handleIncomingMessage = useCallback((data: WebViewToAppMessage) => {
     if (data.type === 'sceneReady') {

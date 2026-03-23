@@ -1,8 +1,10 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
+import { useSQLiteContext } from 'expo-sqlite';
 import type { WebView } from 'react-native-webview';
 
 import type { AppToWebViewMessage, EditorCommand, EditorMode, SnapSuggestion, Vec3, WallConfig } from './types';
+import { type StandDocument, saveStandConfig, loadStandConfig } from './repository';
 
 type StandEditorState = {
   walls: WallConfig[];
@@ -14,6 +16,11 @@ type StandEditorState = {
   snapSuggestion: SnapSuggestion | null;
   canUndo: boolean;
   canRedo: boolean;
+  selectedFairId: string | null;
+  selectFair: (fairId: string | null) => Promise<void>;
+  saveCurrentConfig: () => Promise<void>;
+  hasUnsavedChanges: boolean;
+  replayTransforms: () => void;
   toggleEditorMode: () => void;
   setSnapSuggestion: (suggestion: SnapSuggestion | null) => void;
   confirmSnapSuggestion: () => void;
@@ -39,6 +46,7 @@ const MAX_HISTORY = 50;
 let wallCounter = 0;
 
 export function StandEditorProvider({ children }: { children: ReactNode }) {
+  const db = useSQLiteContext();
   const webViewRef = useRef<WebView | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [walls, setWalls] = useState<WallConfig[]>([]);
@@ -52,6 +60,8 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
   // Command history
   const [history, setHistory] = useState<EditorCommand[]>([]);
   const [redoStack, setRedoStack] = useState<EditorCommand[]>([]);
+  const [selectedFairId, setSelectedFairId] = useState<string | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   // Track last known transform per wall (updated by wallMoved)
   const wallTransforms = useRef<Record<string, { position: Vec3; rotation: Vec3 }>>({});
 
@@ -67,6 +77,7 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
   const pushCommand = useCallback((cmd: EditorCommand) => {
     setHistory(prev => [...prev.slice(-MAX_HISTORY + 1), cmd]);
     setRedoStack([]);
+    setHasUnsavedChanges(true);
   }, []);
 
   // --- Wall actions (with history) ---
@@ -152,6 +163,7 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
   // --- Undo / Redo ---
 
   const undo = useCallback(() => {
+    setHasUnsavedChanges(true);
     setHistory(prev => {
       if (prev.length === 0) return prev;
       const cmd = prev[prev.length - 1];
@@ -185,6 +197,7 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
   }, [sendMessage]);
 
   const redo = useCallback(() => {
+    setHasUnsavedChanges(true);
     setRedoStack(prev => {
       if (prev.length === 0) return prev;
       const cmd = prev[prev.length - 1];
@@ -273,6 +286,65 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     });
   }, [sendMessage]);
 
+  const replayTransforms = useCallback(() => {
+    const transforms = wallTransforms.current;
+    for (const wallId of Object.keys(transforms)) {
+      const t = transforms[wallId];
+      sendMessage({ type: 'setWallTransform', wallId, position: t.position, rotation: t.rotation });
+    }
+  }, [sendMessage]);
+
+  const selectFair = useCallback(async (fairId: string | null) => {
+    setSelectedFairId(fairId);
+    setHasUnsavedChanges(false);
+
+    // Clear current state
+    walls.forEach(w => sendMessage({ type: 'removeWall', wallId: w.id }));
+    setWalls([]);
+    setSelectedWallId(null);
+    setSnapSuggestion(null);
+    setHistory([]);
+    setRedoStack([]);
+    wallTransforms.current = {};
+
+    if (!fairId) return;
+
+    // Load config for this fair
+    const config = await loadStandConfig(db, fairId);
+    if (!config) return;
+
+    const loadedWalls: WallConfig[] = [];
+    for (const wall of config.walls) {
+      const wc: WallConfig = { id: wall.id, width: wall.width, height: wall.height, depth: wall.depth };
+      loadedWalls.push(wc);
+      sendMessage({ type: 'addWall', wall: wc });
+      sendMessage({ type: 'setWallTransform', wallId: wall.id, position: wall.position, rotation: wall.rotation });
+      wallTransforms.current[wall.id] = { position: wall.position, rotation: wall.rotation };
+    }
+    setWalls(loadedWalls);
+
+    // Update wallCounter to avoid id collisions
+    const maxNum = loadedWalls.reduce((max, w) => {
+      const num = parseInt(w.id.replace('wall-', ''), 10);
+      return isNaN(num) ? max : Math.max(max, num);
+    }, 0);
+    wallCounter = maxNum;
+  }, [db, walls, sendMessage]);
+
+  const saveCurrentConfig = useCallback(async () => {
+    if (!selectedFairId) return;
+
+    const doc: StandDocument = {
+      walls: walls.map(w => ({
+        ...w,
+        position: wallTransforms.current[w.id]?.position ?? { x: 0, y: 0, z: 0 },
+        rotation: wallTransforms.current[w.id]?.rotation ?? { x: 0, y: 0, z: 0 },
+      })),
+    };
+    await saveStandConfig(db, selectedFairId, doc);
+    setHasUnsavedChanges(false);
+  }, [db, selectedFairId, walls]);
+
   const registerWebView = useCallback((ref: WebView | null) => {
     webViewRef.current = ref;
   }, []);
@@ -296,6 +368,11 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       dismissSnapSuggestion,
       canUndo: history.length > 0,
       canRedo: redoStack.length > 0,
+      selectedFairId,
+      selectFair,
+      saveCurrentConfig,
+      hasUnsavedChanges,
+      replayTransforms,
       addWall,
       removeSelectedWall,
       updateWallDimension,
