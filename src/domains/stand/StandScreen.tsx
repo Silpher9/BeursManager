@@ -19,7 +19,7 @@ export function StandScreen() {
   const { isTablet } = useResponsive();
   const insets = useSafeAreaInsets();
 
-  const { walls, sceneReady, snapEnabled, snapDegrees, selectedWallId, addWall, removeSelectedWall, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, registerWebView, registerIframe } = useStandEditor();
+  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedWallId, addWall, removeSelectedWall, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, registerWebView, registerIframe } = useStandEditor();
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +55,10 @@ export function StandScreen() {
     if (snapEnabled) {
       sendMessage({ type: 'setRotationSnap', enabled: true, degrees: snapDegrees });
     }
-  }, [walls, snapEnabled, snapDegrees, sendMessage]);
+    if (editorMode !== 'build') {
+      sendMessage({ type: 'setEditorMode', mode: editorMode });
+    }
+  }, [walls, snapEnabled, snapDegrees, editorMode, sendMessage]);
 
   const handleIncomingMessage = useCallback((data: WebViewToAppMessage) => {
     if (data.type === 'sceneReady') {

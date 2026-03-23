@@ -15,6 +15,8 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
     snapDegrees,
     sceneReady,
     snapSuggestion,
+    editorMode,
+    toggleEditorMode,
     addWall,
     removeSelectedWall,
     updateWallDimension,
@@ -37,6 +39,17 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
       <Text style={styles.sectionTitle}>Stand Editor</Text>
 
       {sceneReady && (
+        <Pressable
+          style={[styles.modeToggle, editorMode === 'view' && styles.modeToggleActive]}
+          onPress={toggleEditorMode}
+        >
+          <Text style={styles.modeToggleText}>
+            {editorMode === 'build' ? '👁 View mode' : '🔧 Build mode'}
+          </Text>
+        </Pressable>
+      )}
+
+      {sceneReady && editorMode === 'build' && (
         <>
           <Pressable style={styles.addButton} onPress={addWall}>
             <Text style={styles.addButtonText}>+ Wand toevoegen</Text>
@@ -238,6 +251,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
+  },
+  modeToggle: {
+    backgroundColor: 'rgba(255, 253, 249, 0.08)',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modeToggleActive: {
+    backgroundColor: 'rgba(64, 156, 255, 0.15)',
+  },
+  modeToggleText: {
+    color: INACTIVE_TINT,
+    fontSize: 13,
+    fontWeight: '600',
   },
   snapSuggestionCard: {
     backgroundColor: 'rgba(64, 156, 255, 0.15)',

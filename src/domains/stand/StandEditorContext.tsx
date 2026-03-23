@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useRef, useState, type ReactNod
 import { Platform } from 'react-native';
 import type { WebView } from 'react-native-webview';
 
-import type { AppToWebViewMessage, SnapSuggestion, WallConfig } from './types';
+import type { AppToWebViewMessage, EditorMode, SnapSuggestion, WallConfig } from './types';
 
 type StandEditorState = {
   walls: WallConfig[];
@@ -10,6 +10,8 @@ type StandEditorState = {
   snapEnabled: boolean;
   snapDegrees: number;
   sceneReady: boolean;
+  editorMode: EditorMode;
+  toggleEditorMode: () => void;
   snapSuggestion: SnapSuggestion | null;
   setSnapSuggestion: (suggestion: SnapSuggestion | null) => void;
   confirmSnapSuggestion: () => void;
@@ -38,6 +40,7 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
   const [snapEnabled, setSnapEnabled] = useState(false);
   const [snapDegrees, setSnapDegrees] = useState(15);
   const [sceneReady, setSceneReady] = useState(false);
+  const [editorMode, setEditorMode] = useState<EditorMode>('build');
   const [snapSuggestion, setSnapSuggestion] = useState<SnapSuggestion | null>(null);
 
   const sendMessage = useCallback((message: AppToWebViewMessage) => {
@@ -106,6 +109,15 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     });
   }, [sendMessage]);
 
+  const toggleEditorMode = useCallback(() => {
+    setEditorMode(current => {
+      const next = current === 'build' ? 'view' : 'build';
+      sendMessage({ type: 'setEditorMode', mode: next });
+      return next;
+    });
+    setSnapSuggestion(null);
+  }, [sendMessage]);
+
   const confirmSnapSuggestion = useCallback(() => {
     if (!snapSuggestion) return;
     sendMessage({
@@ -137,6 +149,8 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       snapEnabled,
       snapDegrees,
       sceneReady,
+      editorMode,
+      toggleEditorMode,
       snapSuggestion,
       setSnapSuggestion,
       confirmSnapSuggestion,

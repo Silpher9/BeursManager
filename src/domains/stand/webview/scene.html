@@ -31,10 +31,12 @@
     }
 
     // --- State ---
-    var walls = {};       // wallId -> { mesh, config }
+    var walls = {};       // wallId -> { mesh, config, label: null }
     var scene = null;
     var gizmoManager = null;
     var selectedWallId = null;
+    var editorMode = 'build'; // 'build' | 'view'
+    var guiTexture = null;
 
     function handleAppMessage(event) {
       var data;
@@ -65,6 +67,9 @@
       }
       if (data.type === 'dismissSnap') {
         clearGhost();
+      }
+      if (data.type === 'setEditorMode') {
+        setEditorMode(data.mode);
       }
     }
 
@@ -98,18 +103,21 @@
       mesh.material = createWallMaterial(config.id);
       mesh.metadata = { wallId: config.id };
 
-      walls[config.id] = { mesh: mesh, config: config };
+      walls[config.id] = { mesh: mesh, config: config, label: null, labelText: null };
 
       // Spread walls so they don't overlap
       var count = Object.keys(walls).length;
       if (count > 1) {
         mesh.position.x = (count - 1) * 2;
       }
+
+      createLabel(config.id);
     }
 
     function removeWall(wallId) {
       var entry = walls[wallId];
       if (!entry) return;
+      removeLabel(wallId);
       if (entry.mesh.material) entry.mesh.material.dispose();
       entry.mesh.dispose();
       delete walls[wallId];
@@ -146,10 +154,12 @@
       mesh.material = createWallMaterial(wallId);
       mesh.metadata = { wallId: wallId };
 
+      removeLabel(wallId);
       entry.mesh = mesh;
       entry.config.width = width;
       entry.config.height = height;
       entry.config.depth = depth;
+      createLabel(wallId);
 
       if (selectedWallId === wallId && gizmoManager) {
         gizmoManager.attachToMesh(mesh);
@@ -177,6 +187,91 @@
       var rotGizmo = gizmoManager.gizmos.rotationGizmo;
       var snap = enabled ? (degrees * Math.PI / 180) : 0;
       rotGizmo.yGizmo.snapDistance = snap;
+    }
+
+    // --- Editor mode / labels ---
+    function createLabel(wallId) {
+      if (!guiTexture) return;
+      var entry = walls[wallId];
+      if (!entry || entry.label) return;
+
+      var rect = new BABYLON.GUI.Rectangle('label_' + wallId);
+      rect.width = '80px';
+      rect.height = '24px';
+      rect.cornerRadius = 4;
+      rect.color = 'transparent';
+      rect.background = 'rgba(58, 46, 34, 0.75)';
+      rect.thickness = 0;
+
+      var text = new BABYLON.GUI.TextBlock();
+      text.text = entry.config.width + 'cm';
+      text.color = '#FFFDF9';
+      text.fontSize = 12;
+      text.fontWeight = 'bold';
+      rect.addControl(text);
+
+      guiTexture.addControl(rect);
+      rect.linkWithMesh(entry.mesh);
+      rect.linkOffsetY = -20;
+
+      entry.label = rect;
+      entry.labelText = text;
+
+      if (editorMode !== 'build') {
+        rect.isVisible = false;
+      }
+    }
+
+    function updateLabel(wallId) {
+      var entry = walls[wallId];
+      if (!entry || !entry.labelText) return;
+      entry.labelText.text = entry.config.width + 'cm';
+    }
+
+    function removeLabel(wallId) {
+      var entry = walls[wallId];
+      if (!entry || !entry.label) return;
+      guiTexture.removeControl(entry.label);
+      entry.label.dispose();
+      entry.label = null;
+      entry.labelText = null;
+    }
+
+    function setEditorMode(mode) {
+      editorMode = mode;
+      var wallIds = Object.keys(walls);
+      for (var i = 0; i < wallIds.length; i++) {
+        var entry = walls[wallIds[i]];
+        if (entry.label) {
+          entry.label.isVisible = (mode === 'build');
+        }
+      }
+      // In view mode: detach gizmo, disable pointer interaction
+      if (mode === 'view') {
+        if (gizmoManager) {
+          gizmoManager.attachToMesh(null);
+          gizmoManager.positionGizmoEnabled = false;
+          gizmoManager.rotationGizmoEnabled = false;
+        }
+        clearGhost();
+      } else {
+        if (gizmoManager) {
+          gizmoManager.positionGizmoEnabled = true;
+          gizmoManager.rotationGizmoEnabled = true;
+          // Re-restrict axes
+          if (gizmoManager.gizmos.positionGizmo) {
+            gizmoManager.gizmos.positionGizmo.yGizmo.isEnabled = false;
+          }
+          if (gizmoManager.gizmos.rotationGizmo) {
+            gizmoManager.gizmos.rotationGizmo.xGizmo.isEnabled = false;
+            gizmoManager.gizmos.rotationGizmo.zGizmo.isEnabled = false;
+          }
+          // Re-attach to selected wall if any
+          if (selectedWallId && walls[selectedWallId]) {
+            gizmoManager.attachToMesh(walls[selectedWallId].mesh);
+          }
+        }
+      }
     }
 
     // --- Wall snapping ---
@@ -361,6 +456,9 @@
         groundMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
         ground.material = groundMat;
 
+        // GUI voor labels
+        guiTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI('UI', true, scene);
+
         // GizmoManager voor wand-interactie
         gizmoManager = new BABYLON.GizmoManager(scene);
         gizmoManager.positionGizmoEnabled = true;
@@ -411,6 +509,7 @@
         // Klik op wand = selecteer, klik op grond/lucht = deselecteer
         scene.onPointerObservable.add(function (pointerInfo) {
           if (pointerInfo.type !== BABYLON.PointerEventTypes.POINTERTAP) return;
+          if (editorMode === 'view') return; // Geen interactie in view mode
           var pickResult = pointerInfo.pickInfo;
           if (pickResult && pickResult.hit && pickResult.pickedMesh) {
             var meta = pickResult.pickedMesh.metadata;
@@ -436,10 +535,18 @@
         sendToApp({ type: 'error', message: 'Scene init mislukt: ' + (e.message || e) });
       }
     }
+
+    function loadGui() {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.babylonjs.com/gui/babylon.gui.min.js';
+      s.onload = function () { initScene(); };
+      s.onerror = function () { sendToApp({ type: 'error', message: 'BabylonJS GUI CDN laden mislukt' }); };
+      document.body.appendChild(s);
+    }
   </script>
   <script
     src="https://cdn.babylonjs.com/babylon.js"
-    onload="initScene()"
+    onload="loadGui()"
     onerror="sendToApp({ type: 'error', message: 'BabylonJS CDN laden mislukt' })"
   ></script>
 </body>

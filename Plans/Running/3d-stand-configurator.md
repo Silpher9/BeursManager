@@ -55,34 +55,66 @@ Kunstenaars kunnen hun beursstand in 3D inrichten: wanden plaatsen, kunstwerken 
 
 ---
 
-## Fase 2b: Wall Editing UX ✦ HUIDIGE FASE
-
-**Doel**: interactie verfijnen op basis van iPad-gebruikersfeedback.
-
-**Scope:**
-- Rotatie-snap: toggle + instelbaar interval (graden)
-- Muurdikte (depth) als configureerbare eigenschap in model + UI
-- Gizmo visueel verbeteren: grotere/zichtbaardere handles
+## Fase 2b: Wall Editing UX ✅
 
 **DoD:**
-- [ ] Rotatie-snap toggle met instelbaar graden-interval
-- [ ] Muurdikte configureerbaar in model, bridge en UI
-- [ ] Gizmo handles beter zichtbaar/klikbaar
+- [x] Rotatie-snap toggle met instelbaar graden-interval
+- [x] Muurdikte configureerbaar in model, bridge en UI
+- [x] Gizmo handles beter zichtbaar/klikbaar
+- [x] Editor controls in sidebar (tablet-first)
 
 ---
 
-## Fase 2c: Wall Snapping
-
-**Doel**: wanden op elkaar laten snappen wanneer ze loodrecht dicht bij elkaar staan.
-
-**Scope:**
-- Proximity detectie tussen wandzijden
-- Loodrecht-check
-- Snap-popup met optie om te snappen of te negeren
+## Fase 2c: Wall Snapping ✅
 
 **DoD:**
-- [ ] Snap-detectie bij wanden dicht bij elkaar + loodrecht
-- [ ] UI popup met snap/negeer optie
+- [x] Snap-detectie bij wanden dicht bij elkaar + loodrecht
+- [x] Ghost preview (exact 1 kandidaat, geen ambiguïteit)
+- [x] Sidebar card met snap/negeer optie
+- [x] dismissSnap end-to-end (ghost cleanup)
+
+---
+
+## Fase 2d: Build/View Mode ✦ HUIDIGE FASE
+
+**Doel**: twee modi voor de editor — bouwmodus met labels/afmetingen en viewmodus voor presentatie.
+
+**Scope:**
+- Toggle build/view mode in sidebar
+- Build mode: wandlengtes als labels bovenop wanden
+- View mode: clean scene zonder helpers
+
+**DoD:**
+- [ ] Build/view mode toggle
+- [ ] Wandlengtes zichtbaar in build mode
+- [ ] Clean scene in view mode
+
+---
+
+## Fase 2e: Undo/Redo
+
+**Doel**: command history voor wall acties.
+
+**Scope:**
+- Command pattern op wall add/remove/move/resize/snap
+- Undo/redo knoppen in sidebar
+
+**DoD:**
+- [ ] Undo/redo voor wall acties
+- [ ] UI knoppen in sidebar
+
+---
+
+## Fase 2f: XZ-plane Drag Handle
+
+**Doel**: gecombineerd slepen over grondvlak via center handle.
+
+**Scope:**
+- Paars bolletje op gizmo origin
+- Drag beweegt wand over X en Z tegelijk
+
+**DoD:**
+- [ ] Center handle op gizmo voor XZ-plane drag
 - [ ] Wanden snappen correct op positie + rotatie
 
 ---

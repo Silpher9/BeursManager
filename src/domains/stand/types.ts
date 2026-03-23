@@ -22,7 +22,10 @@ export type AppToWebViewMessage =
   | { type: 'updateWall'; wallId: string; width: number; height: number; depth: number }
   | { type: 'setRotationSnap'; enabled: boolean; degrees: number }
   | { type: 'confirmSnap'; wallId: string; position: Vec3; rotation: Vec3 }
-  | { type: 'dismissSnap' };
+  | { type: 'dismissSnap' }
+  | { type: 'setEditorMode'; mode: EditorMode };
+
+export type EditorMode = 'build' | 'view';
 
 export type WebViewToAppMessage =
   | { type: 'pong' }
