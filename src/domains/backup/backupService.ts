@@ -62,8 +62,10 @@ export async function exportBackup(
   await addDirectoryToZip(zip, 'receipt-images', RECEIPT_IMAGE_DIR);
 
   const zipBase64 = await zip.generateAsync({ type: 'base64' });
-  const today = new Date().toISOString().slice(0, 10);
-  const zipFileName = `beursmanager-backup-${today}.zip`;
+  const now = new Date();
+  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const time = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+  const zipFileName = `beursmanager-backup-${date}_${time}.zip`;
   const zipPath = `${cacheDirectory}${zipFileName}`;
   await writeAsStringAsync(zipPath, zipBase64, { encoding: EncodingType.Base64 });
 
