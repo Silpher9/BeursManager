@@ -118,55 +118,107 @@ Kunstenaars kunnen hun beursstand in 3D inrichten: wanden plaatsen, kunstwerken 
 
 ---
 
-## Fase 4: Kunstwerken ophangen
+## Fase 4a: Artwork Browser in Sidebar ✦ HUIDIGE FASE
 
-**Doel**: werken uit de BeursManager voorraad op wanden plaatsen met juiste afmetingen.
+**Doel**: kunstwerken van de geselecteerde beurs tonen in de sidebar.
 
 **Scope:**
-- App stuurt kunstwerk-data naar WebView (id, title, heightCm, widthCm, foto)
-- Kunstwerk = textured plane op de wand, juiste schaal
-- Foto laden als texture (base64 via postMessage of lokale server)
-- Versleepbaar langs de wand
-- Lijstje in de app-UI om kunstwerken te selecteren
-
-**Data-grens:**
-```
-App → WebView: { type: 'addArtwork', id, title, heightCm, widthCm, imageBase64 }
-WebView → App: { type: 'artworkPlaced', id, wallId, position }
-```
+- Toon werken gekoppeld aan beurs (via fair_artworks)
+- Filter per kunstenaar
+- Thumbnail, naam, afmetingen
+- Error indicator bij ontbrekende dimensies (height_cm/width_cm)
 
 **DoD:**
-- [ ] Kunstwerken uit voorraad selecteerbaar
-- [ ] Op wand geplaatst met juiste afmetingen
-- [ ] Foto zichtbaar als texture
-- [ ] Versleepbaar langs de wand
+- [ ] Beurs-gebonden kunstwerken in sidebar
+- [ ] Filter per kunstenaar
+- [ ] Ontbrekende dimensies gemarkeerd
 
 ---
 
-## Fase 5: Opslaan en laden
+## Fase 4b: Basic Placement op Wand
 
-**Doel**: stand-indeling persistent opslaan per beurs.
+**Doel**: kunstwerk selecteren in sidebar → klik op wand → plaatsen.
 
 **Scope:**
-- Stand-configuratie als JSON document (wanden, lampen, kunstwerken + posities)
-- Opslaan in SQLite, gekoppeld aan fair_id
-- **Beurs-selectiemenu** bij openen Stand tab: dropdown/lijst met alle beurzen, kies een beurs → laad of start configuratie
-- Bij heropenen: scene herstellen vanuit opgeslagen configuratie
-- DB migratie: nieuwe `stand_configurations` tabel
-
-**Stand-document formaat:**
-```json
-{
-  "walls": [{ "id": "w1", "width": 300, "height": 250, "position": {...}, "rotation": {...}, "hasDoor": false }],
-  "lamps": [{ "id": "l1", "type": "spot", "position": {...}, "target": {...} }],
-  "artworks": [{ "artworkId": "abc", "wallId": "w1", "position": {...} }]
-}
-```
+- Selecteer werk in sidebar → "placement mode"
+- Klik op wand → textured plane met juiste schaal (cm → meters)
+- Foto als texture (base64 via bridge)
+- Geplaatste werken greyed out in menu
+- Verwijder-optie (terug naar menu)
 
 **DoD:**
-- [ ] Stand-indeling opslaan per beurs
-- [ ] Stand-indeling laden en scene herstellen
-- [ ] Meerdere standen per beurs mogelijk (optioneel)
+- [ ] Werk selecteren + op wand plaatsen
+- [ ] Juiste afmetingen uit voorraad
+- [ ] Foto als texture
+- [ ] Geplaatst/niet-geplaatst status in menu
+- [ ] Verwijderen van wand
+
+---
+
+## Fase 4c: Repositioning op Wand
+
+**Doel**: kunstwerk verplaatsen over het wandvlak.
+
+**Scope:**
+- Klik op kunstwerk in 3D → selectie
+- Slepen over wand in lokale wand-assen (niet wereld X/Y)
+- Wall-anchoring: werk blijft op wandvlak
+
+**DoD:**
+- [ ] Kunstwerk selecteerbaar in scene
+- [ ] Versleepbaar over wandvlak
+
+---
+
+## Fase 4d: Overlap Detectie
+
+**Doel**: visuele feedback bij overlappende kunstwerken.
+
+**Scope:**
+- Geometrische overlap-check per wand
+- Overlappende werken lichten rood op
+- Geen physics/collision, alleen visuele indicatie
+
+**DoD:**
+- [ ] Overlap detectie tussen werken op zelfde wand
+- [ ] Rode highlight bij overlap
+
+---
+
+## Fase 4e: Afstandslabels (Hanging Guides)
+
+**Doel**: afstanden van kunstwerk naar wandranden tonen.
+
+**Scope:**
+- Per kunstwerk: afstand naar alle 4 wandranden berekenen
+- Labels aan elke zijde (in build mode)
+
+**DoD:**
+- [ ] Afstandslabels naar wandranden per kunstwerk
+
+---
+
+## Fase 4f: Artwork Persistentie
+
+**Doel**: kunstwerk-plaatsingen meenemen in opgeslagen configuratie.
+
+**Scope:**
+- Artwork placements in stand_configurations JSON
+- Save/load inclusief artwork positions per wand
+
+**DoD:**
+- [ ] Artwork placements in config JSON
+- [ ] Laden herstelt kunstwerken op juiste wand + positie
+
+---
+
+## Fase 5: Opslaan en laden ✅
+
+**DoD:**
+- [x] Stand-indeling opslaan per beurs (één config per beurs)
+- [x] Stand-indeling laden en scene herstellen
+- [x] Model-first persistentie (geen WebView uitvragen)
+- [x] Idempotente migratie
 
 ---
 

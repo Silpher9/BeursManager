@@ -58,15 +58,6 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
 
       <Text style={styles.sectionTitle}>Stand Editor</Text>
 
-      {selectedFairId && (
-        <View style={styles.saveRow}>
-          <Pressable style={styles.saveButton} onPress={saveCurrentConfig}>
-            <Text style={styles.saveButtonText}>
-              {hasUnsavedChanges ? 'Opslaan *' : 'Opslaan'}
-            </Text>
-          </Pressable>
-        </View>
-      )}
 
       {sceneReady && (
         <Pressable
@@ -216,6 +207,13 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
             <Text style={styles.fairEmptyText}>Geen beurzen gevonden</Text>
           )}
         </ScrollView>
+        {selectedFairId && (
+          <Pressable style={styles.saveButton} onPress={saveCurrentConfig}>
+            <Text style={styles.saveButtonText}>
+              {hasUnsavedChanges ? 'Opslaan *' : 'Opslaan'}
+            </Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
