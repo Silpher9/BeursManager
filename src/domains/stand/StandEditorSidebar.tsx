@@ -56,41 +56,17 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
 
       <View style={styles.separator} />
 
-      <Text style={styles.label}>Beurs</Text>
-      <ScrollView style={styles.fairList} nestedScrollEnabled>
-        {fairs.map(fair => (
-          <Pressable
-            key={fair.id}
-            style={[styles.fairItem, selectedFairId === fair.id && styles.fairItemActive]}
-            onPress={() => selectFair(fair.id)}
-          >
-            <Text style={[styles.fairItemText, selectedFairId === fair.id && styles.fairItemTextActive]} numberOfLines={1}>
-              {fair.name}
-            </Text>
-          </Pressable>
-        ))}
-        {fairs.length === 0 && (
-          <Text style={styles.fairEmptyText}>Geen beurzen gevonden</Text>
-        )}
-      </ScrollView>
+      <Text style={styles.sectionTitle}>Stand Editor</Text>
 
       {selectedFairId && (
-        <>
-          <View style={styles.separator} />
-
-          <View style={styles.saveRow}>
-            <Pressable style={styles.saveButton} onPress={saveCurrentConfig}>
-              <Text style={styles.saveButtonText}>
-                {hasUnsavedChanges ? 'Opslaan *' : 'Opslaan'}
-              </Text>
-            </Pressable>
-          </View>
-        </>
+        <View style={styles.saveRow}>
+          <Pressable style={styles.saveButton} onPress={saveCurrentConfig}>
+            <Text style={styles.saveButtonText}>
+              {hasUnsavedChanges ? 'Opslaan *' : 'Opslaan'}
+            </Text>
+          </Pressable>
+        </View>
       )}
-
-      <View style={styles.separator} />
-
-      <Text style={styles.sectionTitle}>Stand Editor</Text>
 
       {sceneReady && (
         <Pressable
@@ -219,6 +195,28 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
           )}
         </>
       )}
+
+      {/* Beurs-selectie onderaan, vaste hoogte */}
+      <View style={styles.fairSection}>
+        <View style={styles.separator} />
+        <Text style={styles.label}>Beurs</Text>
+        <ScrollView style={styles.fairList} nestedScrollEnabled>
+          {fairs.map(fair => (
+            <Pressable
+              key={fair.id}
+              style={[styles.fairItem, selectedFairId === fair.id && styles.fairItemActive]}
+              onPress={() => selectFair(fair.id)}
+            >
+              <Text style={[styles.fairItemText, selectedFairId === fair.id && styles.fairItemTextActive]} numberOfLines={1}>
+                {fair.name}
+              </Text>
+            </Pressable>
+          ))}
+          {fairs.length === 0 && (
+            <Text style={styles.fairEmptyText}>Geen beurzen gevonden</Text>
+          )}
+        </ScrollView>
+      </View>
     </View>
   );
 }
@@ -322,6 +320,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
+  },
+  fairSection: {
+    marginTop: 'auto' as unknown as number,
   },
   fairList: {
     maxHeight: 120,
