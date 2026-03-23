@@ -71,6 +71,9 @@
       if (data.type === 'setEditorMode') {
         setEditorMode(data.mode);
       }
+      if (data.type === 'setWallTransform' && data.wallId) {
+        setWallTransform(data.wallId, data.position, data.rotation);
+      }
     }
 
     document.addEventListener('message', handleAppMessage);
@@ -187,6 +190,29 @@
       var rotGizmo = gizmoManager.gizmos.rotationGizmo;
       var snap = enabled ? (degrees * Math.PI / 180) : 0;
       rotGizmo.yGizmo.snapDistance = snap;
+    }
+
+    // --- Wall transform (for undo/redo) ---
+    var dragStartPosition = null;
+    var dragStartRotation = null;
+
+    function getEulerRotation(mesh) {
+      if (mesh.rotationQuaternion) {
+        var euler = mesh.rotationQuaternion.toEulerAngles();
+        return { x: euler.x, y: euler.y, z: euler.z };
+      }
+      return { x: mesh.rotation.x, y: mesh.rotation.y, z: mesh.rotation.z };
+    }
+
+    function setWallTransform(wallId, position, rotation) {
+      var entry = walls[wallId];
+      if (!entry) return;
+      entry.mesh.position = new BABYLON.Vector3(position.x, position.y, position.z);
+      entry.mesh.rotation = new BABYLON.Vector3(rotation.x, rotation.y, rotation.z);
+      entry.mesh.rotationQuaternion = null;
+      if (selectedWallId === wallId && gizmoManager) {
+        gizmoManager.attachToMesh(entry.mesh);
+      }
     }
 
     // --- Editor mode / labels ---
@@ -484,10 +510,35 @@
           rotGizmo.scaleRatio = 1.5;
         }
 
-        // Snap detectie na positie-drag
+        // Track drag start + snap detectie na positie-drag
         if (posGizmo) {
+          var onDragStart = function () {
+            if (!selectedWallId || !walls[selectedWallId]) return;
+            var m = walls[selectedWallId].mesh;
+            dragStartPosition = { x: m.position.x, y: m.position.y, z: m.position.z };
+            dragStartRotation = getEulerRotation(m);
+          };
           var onDragEnd = function () {
-            if (!selectedWallId) return;
+            if (!selectedWallId || !walls[selectedWallId]) return;
+            var m = walls[selectedWallId].mesh;
+            var newPos = { x: m.position.x, y: m.position.y, z: m.position.z };
+            var newRot = getEulerRotation(m);
+
+            // Send wallMoved for undo/redo history
+            if (dragStartPosition) {
+              sendToApp({
+                type: 'wallMoved',
+                wallId: selectedWallId,
+                oldPosition: dragStartPosition,
+                newPosition: newPos,
+                oldRotation: dragStartRotation || newRot,
+                newRotation: newRot,
+              });
+              dragStartPosition = null;
+              dragStartRotation = null;
+            }
+
+            // Snap detectie
             clearGhost();
             var candidate = checkSnap(selectedWallId);
             if (candidate) {
@@ -497,8 +548,38 @@
               sendToApp({ type: 'snapSuggestion', suggestion: null });
             }
           };
+          posGizmo.xGizmo.dragBehavior.onDragStartObservable.add(onDragStart);
+          posGizmo.zGizmo.dragBehavior.onDragStartObservable.add(onDragStart);
           posGizmo.xGizmo.dragBehavior.onDragEndObservable.add(onDragEnd);
           posGizmo.zGizmo.dragBehavior.onDragEndObservable.add(onDragEnd);
+        }
+
+        // Track rotation drag for undo/redo
+        if (rotGizmo) {
+          rotGizmo.yGizmo.dragBehavior.onDragStartObservable.add(function () {
+            if (!selectedWallId || !walls[selectedWallId]) return;
+            var m = walls[selectedWallId].mesh;
+            dragStartPosition = { x: m.position.x, y: m.position.y, z: m.position.z };
+            dragStartRotation = getEulerRotation(m);
+          });
+          rotGizmo.yGizmo.dragBehavior.onDragEndObservable.add(function () {
+            if (!selectedWallId || !walls[selectedWallId]) return;
+            var m = walls[selectedWallId].mesh;
+            var newPos = { x: m.position.x, y: m.position.y, z: m.position.z };
+            var newRot = getEulerRotation(m);
+            if (dragStartPosition) {
+              sendToApp({
+                type: 'wallMoved',
+                wallId: selectedWallId,
+                oldPosition: dragStartPosition,
+                newPosition: newPos,
+                oldRotation: dragStartRotation || newRot,
+                newRotation: newRot,
+              });
+              dragStartPosition = null;
+              dragStartRotation = null;
+            }
+          });
         }
 
         // Vergroot gizmo utility layer pointer precision voor touch

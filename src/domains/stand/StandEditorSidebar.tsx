@@ -17,6 +17,10 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
     snapSuggestion,
     editorMode,
     toggleEditorMode,
+    canUndo,
+    canRedo,
+    undo,
+    redo,
     addWall,
     removeSelectedWall,
     updateWallDimension,
@@ -51,6 +55,23 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
 
       {sceneReady && editorMode === 'build' && (
         <>
+          <View style={styles.undoRedoRow}>
+            <Pressable
+              style={[styles.undoRedoButton, !canUndo && styles.undoRedoDisabled]}
+              onPress={undo}
+              disabled={!canUndo}
+            >
+              <Text style={[styles.undoRedoText, !canUndo && styles.undoRedoTextDisabled]}>Undo</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.undoRedoButton, !canRedo && styles.undoRedoDisabled]}
+              onPress={redo}
+              disabled={!canRedo}
+            >
+              <Text style={[styles.undoRedoText, !canRedo && styles.undoRedoTextDisabled]}>Redo</Text>
+            </Pressable>
+          </View>
+
           <Pressable style={styles.addButton} onPress={addWall}>
             <Text style={styles.addButtonText}>+ Wand toevoegen</Text>
           </Pressable>
@@ -251,6 +272,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
+  },
+  undoRedoRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  undoRedoButton: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 253, 249, 0.08)',
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  undoRedoDisabled: {
+    opacity: 0.3,
+  },
+  undoRedoText: {
+    color: INACTIVE_TINT,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  undoRedoTextDisabled: {
+    color: INACTIVE_TINT,
   },
   modeToggle: {
     backgroundColor: 'rgba(255, 253, 249, 0.08)',
