@@ -69,6 +69,14 @@ Bij restore wordt de "maintenance mode" gebruikt (`setMaintenanceMode` in `dbRel
 
 **Waarom:** expo-sqlite's `SQLiteProvider` doet `closeAsync()` in React cleanup (fire-and-forget). Een tweede `closeAsync()` op dezelfde handle veroorzaakt een onvangbare "Access to closed resource" rejection. De maintenance mode voorkomt dit door de provider eerst netjes te unmounten voordat bestanden worden verplaatst.
 
+### 3D Stand Configurator (WebView/BabylonJS)
+
+De Stand tab draait BabylonJS in een WebView (`src/domains/stand/webview/scene.html`). De HTML wordt als asset geladen via `expo-asset` en geopend als file:// URI op native.
+
+**Bootstrap-invariant:** Alle functies die door `onload`/`onerror` handlers van `<script>` tags worden aangeroepen, moeten gedefinieerd zijn in een eerder `<script>` blok. iOS WebView parseert en executeert script tags strikt sequentieel — een `onload` callback kan vuren voordat het volgende `<script>` blok is geparsed.
+
+**Waarom:** iPad WebView gaf `ReferenceError: Can't find variable: initScene` toen de functie in een later script blok stond dan de CDN tag die het aanriep.
+
 ## Externe services
 
 - `@fal-ai/client` — AI beeldgeneratie (key via `EXPO_PUBLIC_FAL_KEY`)
@@ -112,6 +120,8 @@ Lokale servers voor BeursManager gebruiken poorten **4000–4050** om conflicten
 - Na logisch afgerond en gevalideerd werk: commit met een duidelijke message in de vorm `type: korte beschrijving (#issue)`
   - Types: feat, fix, refactor, test, docs
 - Push alleen als expliciet gevraagd of als dat voor deze workflow is afgesproken
+- Commits strak scopen op één issue / één logische wijzigingsset — niet-gerelateerde worktree-wijzigingen niet meecommitten
+- Bij klein werk zonder plan: wel issue-link houden, maar geen kunstmatig plan maken
 
 ## iPad-testen
 

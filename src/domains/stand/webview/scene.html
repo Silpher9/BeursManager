@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Stand Configurator</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #F6F1E8; }
+    #renderCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="renderCanvas"></canvas>
+
+  <script>
+    // --- Bridge (beschikbaar vóór Babylon laadt) ---
+    function sendToApp(message) {
+      var json = JSON.stringify(message);
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(json);
+      } else {
+        window.parent.postMessage(json, '*');
+      }
+    }
+
+    function handleAppMessage(event) {
+      var data;
+      try {
+        data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      } catch (e) {
+        return;
+      }
+      if (!data || !data.type) return;
+
+      if (data.type === 'ping') {
+        sendToApp({ type: 'pong' });
+      }
+    }
+
+    document.addEventListener('message', handleAppMessage);
+    window.addEventListener('message', handleAppMessage);
+
+    window.onerror = function (msg, url, line, col, err) {
+      sendToApp({ type: 'error', message: 'JS error: ' + msg });
+    };
+
+    function initScene() {
+      try {
+        var canvas = document.getElementById('renderCanvas');
+        var engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+
+        var scene = new BABYLON.Scene(engine);
+        scene.clearColor = new BABYLON.Color4(0.965, 0.945, 0.910, 1); // #F6F1E8
+
+        // Camera
+        var camera = new BABYLON.ArcRotateCamera(
+          'camera',
+          -Math.PI / 4,       // alpha: 45 graden
+          Math.PI / 3,        // beta: 60 graden
+          8,                   // radius: 8 meter
+          new BABYLON.Vector3(0, 1, 0),
+          scene
+        );
+        camera.lowerRadiusLimit = 1.5;
+        camera.upperRadiusLimit = 15;
+        camera.lowerBetaLimit = 0.1;
+        camera.upperBetaLimit = Math.PI / 2 - 0.05; // Niet onder de grond
+        camera.panningSensibility = 100;
+        camera.attachControl(canvas, true);
+
+        // Verlichting
+        var hemiLight = new BABYLON.HemisphericLight(
+          'hemiLight',
+          new BABYLON.Vector3(0, 1, 0),
+          scene
+        );
+        hemiLight.intensity = 0.6;
+        hemiLight.diffuse = new BABYLON.Color3(1, 0.98, 0.95);
+
+        var dirLight = new BABYLON.DirectionalLight(
+          'dirLight',
+          new BABYLON.Vector3(-0.5, -1, 0.5),
+          scene
+        );
+        dirLight.intensity = 0.8;
+        dirLight.diffuse = new BABYLON.Color3(1, 0.97, 0.92);
+
+        // Ground plane (10x10m)
+        var ground = BABYLON.MeshBuilder.CreateGround('ground', { width: 10, height: 10 }, scene);
+        var groundMat = new BABYLON.StandardMaterial('groundMat', scene);
+        groundMat.diffuseColor = new BABYLON.Color3(0.82, 0.78, 0.72); // Warm zand
+        groundMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+        ground.material = groundMat;
+
+        // Wand (3 x 2.5 x 0.1m)
+        var wall = BABYLON.MeshBuilder.CreateBox('wall', { width: 3, height: 2.5, depth: 0.1 }, scene);
+        wall.position = new BABYLON.Vector3(0, 1.25, -4.5); // Op de grond, naar achteren
+        var wallMat = new BABYLON.StandardMaterial('wallMat', scene);
+        wallMat.diffuseColor = new BABYLON.Color3(0.95, 0.93, 0.88); // Licht crème
+        wallMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+        wall.material = wallMat;
+
+        // Render loop
+        engine.runRenderLoop(function () {
+          scene.render();
+        });
+
+        // Resize
+        window.addEventListener('resize', function () {
+          engine.resize();
+        });
+
+        // Scene is klaar
+        sendToApp({ type: 'sceneReady' });
+      } catch (e) {
+        sendToApp({ type: 'error', message: 'Scene init mislukt: ' + (e.message || e) });
+      }
+    }
+  </script>
+  <script
+    src="https://cdn.babylonjs.com/babylon.js"
+    onload="initScene()"
+    onerror="sendToApp({ type: 'error', message: 'BabylonJS CDN laden mislukt' })"
+  ></script>
+</body>
+</html>

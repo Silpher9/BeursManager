@@ -96,6 +96,16 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="stand"
+        options={{
+          title: 'Stand',
+          headerShown: false,
+          tabBarIcon: ({ color }) => (
+            <TabIcon name={{ ios: 'cube.fill', android: 'view_in_ar', web: 'view_in_ar' }} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: 'Instellingen',
@@ -114,9 +124,9 @@ function TabIcon({
   color,
 }: {
   name: {
-    ios: 'house.fill' | 'square.stack.3d.up.fill' | 'storefront.fill' | 'person.2.fill' | 'chart.bar.fill' | 'gearshape.fill';
-    android: 'home' | 'inventory_2' | 'storefront' | 'contacts' | 'bar_chart' | 'settings';
-    web: 'home' | 'inventory_2' | 'storefront' | 'contacts' | 'bar_chart' | 'settings';
+    ios: 'house.fill' | 'square.stack.3d.up.fill' | 'storefront.fill' | 'person.2.fill' | 'chart.bar.fill' | 'cube.fill' | 'gearshape.fill';
+    android: 'home' | 'inventory_2' | 'storefront' | 'contacts' | 'bar_chart' | 'view_in_ar' | 'settings';
+    web: 'home' | 'inventory_2' | 'storefront' | 'contacts' | 'bar_chart' | 'view_in_ar' | 'settings';
   };
   color: string;
 }) {
