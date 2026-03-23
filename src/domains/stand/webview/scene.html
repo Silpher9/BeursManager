@@ -30,6 +30,12 @@
       }
     }
 
+    // --- State ---
+    var walls = {};       // wallId -> { mesh, config }
+    var scene = null;
+    var gizmoManager = null;
+    var selectedWallId = null;
+
     function handleAppMessage(event) {
       var data;
       try {
@@ -42,6 +48,15 @@
       if (data.type === 'ping') {
         sendToApp({ type: 'pong' });
       }
+      if (data.type === 'addWall' && data.wall) {
+        addWall(data.wall);
+      }
+      if (data.type === 'removeWall' && data.wallId) {
+        removeWall(data.wallId);
+      }
+      if (data.type === 'updateWall' && data.wallId) {
+        updateWall(data.wallId, data.width, data.height);
+      }
     }
 
     document.addEventListener('message', handleAppMessage);
@@ -51,12 +66,106 @@
       sendToApp({ type: 'error', message: 'JS error: ' + msg });
     };
 
+    // --- Wall management ---
+    function cmToM(cm) { return cm / 100; }
+
+    function createWallMaterial(id) {
+      var mat = new BABYLON.StandardMaterial('wallMat_' + id, scene);
+      mat.diffuseColor = new BABYLON.Color3(0.95, 0.93, 0.88);
+      mat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+      return mat;
+    }
+
+    function addWall(config) {
+      if (walls[config.id]) return;
+
+      var w = cmToM(config.width);
+      var h = cmToM(config.height);
+      var mesh = BABYLON.MeshBuilder.CreateBox('wall_' + config.id, {
+        width: w, height: h, depth: 0.1
+      }, scene);
+      mesh.position = new BABYLON.Vector3(0, h / 2, 0);
+      mesh.material = createWallMaterial(config.id);
+      mesh.metadata = { wallId: config.id };
+
+      walls[config.id] = { mesh: mesh, config: config };
+
+      // Spread walls so they don't overlap
+      var count = Object.keys(walls).length;
+      if (count > 1) {
+        mesh.position.x = (count - 1) * 2;
+      }
+    }
+
+    function removeWall(wallId) {
+      var entry = walls[wallId];
+      if (!entry) return;
+      if (entry.mesh.material) entry.mesh.material.dispose();
+      entry.mesh.dispose();
+      delete walls[wallId];
+      if (selectedWallId === wallId) {
+        selectedWallId = null;
+        if (gizmoManager) gizmoManager.attachToMesh(null);
+        sendToApp({ type: 'wallSelected', wallId: null });
+      }
+    }
+
+    function updateWall(wallId, width, height) {
+      var entry = walls[wallId];
+      if (!entry) return;
+
+      var pos = entry.mesh.position.clone();
+      var rotQ = entry.mesh.rotationQuaternion ? entry.mesh.rotationQuaternion.clone() : null;
+      var rot = entry.mesh.rotation.clone();
+      if (entry.mesh.material) entry.mesh.material.dispose();
+      entry.mesh.dispose();
+
+      var w = cmToM(width);
+      var h = cmToM(height);
+      var mesh = BABYLON.MeshBuilder.CreateBox('wall_' + wallId, {
+        width: w, height: h, depth: 0.1
+      }, scene);
+      mesh.position = pos;
+      mesh.position.y = h / 2;
+      if (rotQ) {
+        mesh.rotationQuaternion = rotQ;
+      } else {
+        mesh.rotation = rot;
+      }
+      mesh.material = createWallMaterial(wallId);
+      mesh.metadata = { wallId: wallId };
+
+      entry.mesh = mesh;
+      entry.config.width = width;
+      entry.config.height = height;
+
+      if (selectedWallId === wallId && gizmoManager) {
+        gizmoManager.attachToMesh(mesh);
+      }
+    }
+
+    function selectWall(wallId) {
+      selectedWallId = wallId;
+      var entry = walls[wallId];
+      if (entry && gizmoManager) {
+        gizmoManager.attachToMesh(entry.mesh);
+      }
+      sendToApp({ type: 'wallSelected', wallId: wallId });
+    }
+
+    function deselectWall() {
+      selectedWallId = null;
+      if (gizmoManager) gizmoManager.attachToMesh(null);
+      sendToApp({ type: 'wallSelected', wallId: null });
+    }
+
+    // --- Scene init ---
     function initScene() {
       try {
         var canvas = document.getElementById('renderCanvas');
         var engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
 
-        var scene = new BABYLON.Scene(engine);
+        scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0.965, 0.945, 0.910, 1); // #F6F1E8
 
         // Camera
@@ -71,7 +180,7 @@
         camera.lowerRadiusLimit = 1.5;
         camera.upperRadiusLimit = 15;
         camera.lowerBetaLimit = 0.1;
-        camera.upperBetaLimit = Math.PI / 2 - 0.05; // Niet onder de grond
+        camera.upperBetaLimit = Math.PI / 2 - 0.05;
         camera.panningSensibility = 100;
         camera.attachControl(canvas, true);
 
@@ -95,29 +204,50 @@
         // Ground plane (10x10m)
         var ground = BABYLON.MeshBuilder.CreateGround('ground', { width: 10, height: 10 }, scene);
         var groundMat = new BABYLON.StandardMaterial('groundMat', scene);
-        groundMat.diffuseColor = new BABYLON.Color3(0.82, 0.78, 0.72); // Warm zand
+        groundMat.diffuseColor = new BABYLON.Color3(0.82, 0.78, 0.72);
         groundMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
         ground.material = groundMat;
 
-        // Wand (3 x 2.5 x 0.1m)
-        var wall = BABYLON.MeshBuilder.CreateBox('wall', { width: 3, height: 2.5, depth: 0.1 }, scene);
-        wall.position = new BABYLON.Vector3(0, 1.25, -4.5); // Op de grond, naar achteren
-        var wallMat = new BABYLON.StandardMaterial('wallMat', scene);
-        wallMat.diffuseColor = new BABYLON.Color3(0.95, 0.93, 0.88); // Licht crème
-        wallMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
-        wall.material = wallMat;
+        // GizmoManager voor wand-interactie
+        gizmoManager = new BABYLON.GizmoManager(scene);
+        gizmoManager.positionGizmoEnabled = true;
+        gizmoManager.rotationGizmoEnabled = true;
+        gizmoManager.scaleGizmoEnabled = false;
+        gizmoManager.boundingBoxGizmoEnabled = false;
+        gizmoManager.usePointerToAttachGizmos = false;
+        // Beperk positie-gizmo tot X en Z (niet Y)
+        if (gizmoManager.gizmos.positionGizmo) {
+          gizmoManager.gizmos.positionGizmo.yGizmo.isEnabled = false;
+        }
+        // Beperk rotatie-gizmo tot Y (alleen draaien rond verticale as)
+        if (gizmoManager.gizmos.rotationGizmo) {
+          gizmoManager.gizmos.rotationGizmo.xGizmo.isEnabled = false;
+          gizmoManager.gizmos.rotationGizmo.zGizmo.isEnabled = false;
+        }
+
+        // Klik op wand = selecteer, klik op grond/lucht = deselecteer
+        scene.onPointerObservable.add(function (pointerInfo) {
+          if (pointerInfo.type !== BABYLON.PointerEventTypes.POINTERTAP) return;
+          var pickResult = pointerInfo.pickInfo;
+          if (pickResult && pickResult.hit && pickResult.pickedMesh) {
+            var meta = pickResult.pickedMesh.metadata;
+            if (meta && meta.wallId) {
+              selectWall(meta.wallId);
+              return;
+            }
+          }
+          deselectWall();
+        });
 
         // Render loop
         engine.runRenderLoop(function () {
           scene.render();
         });
 
-        // Resize
         window.addEventListener('resize', function () {
           engine.resize();
         });
 
-        // Scene is klaar
         sendToApp({ type: 'sceneReady' });
       } catch (e) {
         sendToApp({ type: 'error', message: 'Scene init mislukt: ' + (e.message || e) });

@@ -128,6 +128,12 @@ Lokale servers voor BeursManager gebruiken poorten **4000–4050** om conflicten
 SDK 55 + fysieke iPad = **development build** vereist, niet Expo Go.
 Expo Go in de App Store ondersteunt max SDK 52. Vanaf SDK 53+ moet je een development build gebruiken (`npx expo run:ios` met Mac/Xcode, of EAS Build via cloud).
 
+### Testdevices
+
+| Device | OS | Opmerkingen |
+|--------|----|-------------|
+| iPad Pro 12.9-inch (5th gen) | iPadOS 18.5 | Primair testdevice. WebView/BabylonJS (#9) hier gevalideerd. |
+
 ## Huidige status
 
 Fases 0-5 (fundament, voorraad, beurzen, contacten, kosten, rapporten) zijn af. Home Hub is toegevoegd.
