@@ -493,10 +493,15 @@
         gizmoManager.boundingBoxGizmoEnabled = false;
         gizmoManager.usePointerToAttachGizmos = false;
 
-        // Beperk positie-gizmo tot X en Z (niet Y)
+        // Beperk positie-gizmo tot X en Z (niet Y) + XZ-plane drag
         if (gizmoManager.gizmos.positionGizmo) {
           var posGizmo = gizmoManager.gizmos.positionGizmo;
           posGizmo.yGizmo.isEnabled = false;
+          posGizmo.planarGizmoEnabled = true;
+          // Disable XY en YZ planes, alleen XZ (grondvlak)
+          if (posGizmo.xPlaneGizmo) posGizmo.xPlaneGizmo.isEnabled = false;
+          if (posGizmo.yPlaneGizmo) posGizmo.yPlaneGizmo.isEnabled = true; // yPlane = XZ plane
+          if (posGizmo.zPlaneGizmo) posGizmo.zPlaneGizmo.isEnabled = false;
           // Vergroot gizmo handles voor betere touch-interactie
           posGizmo.scaleRatio = 1.5;
         }
@@ -552,6 +557,11 @@
           posGizmo.zGizmo.dragBehavior.onDragStartObservable.add(onDragStart);
           posGizmo.xGizmo.dragBehavior.onDragEndObservable.add(onDragEnd);
           posGizmo.zGizmo.dragBehavior.onDragEndObservable.add(onDragEnd);
+          // XZ-plane drag (yPlaneGizmo) — zelfde history + snap hooks
+          if (posGizmo.yPlaneGizmo) {
+            posGizmo.yPlaneGizmo.dragBehavior.onDragStartObservable.add(onDragStart);
+            posGizmo.yPlaneGizmo.dragBehavior.onDragEndObservable.add(onDragEnd);
+          }
         }
 
         // Track rotation drag for undo/redo
