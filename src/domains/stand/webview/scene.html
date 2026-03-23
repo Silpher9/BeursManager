@@ -60,6 +60,12 @@
       if (data.type === 'setRotationSnap') {
         setRotationSnap(data.enabled, data.degrees);
       }
+      if (data.type === 'confirmSnap' && data.wallId) {
+        confirmSnap(data.wallId, data.position, data.rotation);
+      }
+      if (data.type === 'dismissSnap') {
+        clearGhost();
+      }
     }
 
     document.addEventListener('message', handleAppMessage);
@@ -173,6 +179,139 @@
       rotGizmo.yGizmo.snapDistance = snap;
     }
 
+    // --- Wall snapping ---
+    var ghostMesh = null;
+    var SNAP_THRESHOLD = 0.3; // 30cm in meters
+    var PERPENDICULAR_TOLERANCE = 10 * Math.PI / 180; // 10 degrees
+
+    function getWallEdges(entry) {
+      var mesh = entry.mesh;
+      var w = cmToM(entry.config.width);
+      var d = cmToM(entry.config.depth);
+      // Wall local edges: left (-w/2, 0, 0), right (w/2, 0, 0), front (0, 0, d/2), back (0, 0, -d/2)
+      var matrix = mesh.getWorldMatrix();
+      var halfW = w / 2;
+      var halfD = d / 2;
+      var localEdges = [
+        { dir: 'left', pos: new BABYLON.Vector3(-halfW, 0, 0), normal: new BABYLON.Vector3(-1, 0, 0) },
+        { dir: 'right', pos: new BABYLON.Vector3(halfW, 0, 0), normal: new BABYLON.Vector3(1, 0, 0) },
+        { dir: 'front', pos: new BABYLON.Vector3(0, 0, halfD), normal: new BABYLON.Vector3(0, 0, 1) },
+        { dir: 'back', pos: new BABYLON.Vector3(0, 0, -halfD), normal: new BABYLON.Vector3(0, 0, -1) },
+      ];
+      return localEdges.map(function (e) {
+        return {
+          dir: e.dir,
+          worldPos: BABYLON.Vector3.TransformCoordinates(e.pos, matrix),
+          worldNormal: BABYLON.Vector3.TransformNormal(e.normal, matrix).normalize(),
+        };
+      });
+    }
+
+    function checkSnap(draggedWallId) {
+      var dragged = walls[draggedWallId];
+      if (!dragged) return null;
+
+      var draggedEdges = getWallEdges(dragged);
+      var candidates = [];
+
+      var wallIds = Object.keys(walls);
+      for (var i = 0; i < wallIds.length; i++) {
+        var targetId = wallIds[i];
+        if (targetId === draggedWallId) continue;
+        var target = walls[targetId];
+        var targetEdges = getWallEdges(target);
+
+        for (var de = 0; de < draggedEdges.length; de++) {
+          for (var te = 0; te < targetEdges.length; te++) {
+            var dEdge = draggedEdges[de];
+            var tEdge = targetEdges[te];
+
+            // Check perpendicular: normals should be ~perpendicular (dot product ~0)
+            var dot = Math.abs(BABYLON.Vector3.Dot(dEdge.worldNormal, tEdge.worldNormal));
+            if (dot > Math.sin(PERPENDICULAR_TOLERANCE)) continue;
+
+            // Check distance between edge positions (XZ plane)
+            var dx = dEdge.worldPos.x - tEdge.worldPos.x;
+            var dz = dEdge.worldPos.z - tEdge.worldPos.z;
+            var dist = Math.sqrt(dx * dx + dz * dz);
+
+            if (dist < SNAP_THRESHOLD) {
+              var offset = tEdge.worldPos.subtract(dEdge.worldPos);
+              var snapPos = dragged.mesh.position.add(offset);
+              snapPos.y = dragged.mesh.position.y;
+
+              candidates.push({
+                wallId: draggedWallId,
+                targetWallId: targetId,
+                kind: 'edge_align_perpendicular',
+                candidatePosition: { x: snapPos.x, y: snapPos.y, z: snapPos.z },
+                candidateRotation: {
+                  x: dragged.mesh.rotation.x,
+                  y: dragged.mesh.rotation.y,
+                  z: dragged.mesh.rotation.z,
+                },
+                dist: dist,
+              });
+            }
+          }
+        }
+      }
+
+      // Only return a suggestion when there is exactly 1 candidate
+      if (candidates.length === 1) {
+        return candidates[0];
+      }
+      return null;
+    }
+
+    function showGhost(candidate) {
+      clearGhost();
+      var entry = walls[candidate.wallId];
+      if (!entry) return;
+
+      var w = cmToM(entry.config.width);
+      var h = cmToM(entry.config.height);
+      var d = cmToM(entry.config.depth);
+      ghostMesh = BABYLON.MeshBuilder.CreateBox('ghost_snap', {
+        width: w, height: h, depth: d
+      }, scene);
+      ghostMesh.position = new BABYLON.Vector3(
+        candidate.candidatePosition.x,
+        candidate.candidatePosition.y,
+        candidate.candidatePosition.z
+      );
+      ghostMesh.rotation = new BABYLON.Vector3(
+        candidate.candidateRotation.x,
+        candidate.candidateRotation.y,
+        candidate.candidateRotation.z
+      );
+      var ghostMat = new BABYLON.StandardMaterial('ghostMat', scene);
+      ghostMat.diffuseColor = new BABYLON.Color3(0.4, 0.7, 1.0);
+      ghostMat.alpha = 0.3;
+      ghostMesh.material = ghostMat;
+      ghostMesh.isPickable = false;
+    }
+
+    function clearGhost() {
+      if (ghostMesh) {
+        if (ghostMesh.material) ghostMesh.material.dispose();
+        ghostMesh.dispose();
+        ghostMesh = null;
+      }
+    }
+
+    function confirmSnap(wallId, position, rotation) {
+      var entry = walls[wallId];
+      if (!entry) return;
+      entry.mesh.position = new BABYLON.Vector3(position.x, position.y, position.z);
+      entry.mesh.rotation = new BABYLON.Vector3(rotation.x, rotation.y, rotation.z);
+      entry.mesh.rotationQuaternion = null; // Reset quaternion so euler rotation applies
+      if (selectedWallId === wallId && gizmoManager) {
+        gizmoManager.attachToMesh(entry.mesh);
+      }
+      clearGhost();
+    }
+
     // --- Scene init ---
     function initScene() {
       try {
@@ -245,6 +384,23 @@
           rotGizmo.zGizmo.isEnabled = false;
           // Vergroot rotatie ring voor betere touch-interactie
           rotGizmo.scaleRatio = 1.5;
+        }
+
+        // Snap detectie na positie-drag
+        if (posGizmo) {
+          var onDragEnd = function () {
+            if (!selectedWallId) return;
+            clearGhost();
+            var candidate = checkSnap(selectedWallId);
+            if (candidate) {
+              showGhost(candidate);
+              sendToApp({ type: 'snapSuggestion', suggestion: candidate });
+            } else {
+              sendToApp({ type: 'snapSuggestion', suggestion: null });
+            }
+          };
+          posGizmo.xGizmo.dragBehavior.onDragEndObservable.add(onDragEnd);
+          posGizmo.zGizmo.dragBehavior.onDragEndObservable.add(onDragEnd);
         }
 
         // Vergroot gizmo utility layer pointer precision voor touch

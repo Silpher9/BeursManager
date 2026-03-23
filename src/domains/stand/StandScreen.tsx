@@ -19,7 +19,7 @@ export function StandScreen() {
   const { isTablet } = useResponsive();
   const insets = useSafeAreaInsets();
 
-  const { walls, sceneReady, snapEnabled, snapDegrees, selectedWallId, addWall, removeSelectedWall, setSceneReady, sendMessage, setSelectedWallId, registerWebView, registerIframe } = useStandEditor();
+  const { walls, sceneReady, snapEnabled, snapDegrees, selectedWallId, addWall, removeSelectedWall, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, registerWebView, registerIframe } = useStandEditor();
 
   useEffect(() => {
     let cancelled = false;
@@ -73,7 +73,10 @@ export function StandScreen() {
     if (data.type === 'wallSelected') {
       setSelectedWallId(data.wallId);
     }
-  }, [sendMessage, setSceneReady, setSelectedWallId, replayState]);
+    if (data.type === 'snapSuggestion') {
+      setSnapSuggestion(data.suggestion);
+    }
+  }, [sendMessage, setSceneReady, setSelectedWallId, setSnapSuggestion, replayState]);
 
   // Web: luister naar postMessage van iframe
   useEffect(() => {

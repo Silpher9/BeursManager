@@ -14,11 +14,14 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
     snapEnabled,
     snapDegrees,
     sceneReady,
+    snapSuggestion,
     addWall,
     removeSelectedWall,
     updateWallDimension,
     toggleSnap,
     updateSnapDegrees,
+    confirmSnapSuggestion,
+    dismissSnapSuggestion,
   } = useStandEditor();
 
   const selectedWall = walls.find(w => w.id === selectedWallId);
@@ -110,6 +113,26 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
               </View>
             )}
           </View>
+
+          {snapSuggestion && (
+            <>
+              <View style={styles.separator} />
+              <View style={styles.snapSuggestionCard}>
+                <Text style={styles.snapSuggestionTitle}>Snap beschikbaar</Text>
+                <Text style={styles.snapSuggestionText}>
+                  Wand uitlijnen met aangrenzende wand?
+                </Text>
+                <View style={styles.snapSuggestionActions}>
+                  <Pressable style={styles.snapAcceptButton} onPress={confirmSnapSuggestion}>
+                    <Text style={styles.snapAcceptText}>Snap</Text>
+                  </Pressable>
+                  <Pressable style={styles.snapDismissButton} onPress={dismissSnapSuggestion}>
+                    <Text style={styles.snapDismissText}>Negeer</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </>
+          )}
         </>
       )}
     </View>
@@ -215,5 +238,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
+  },
+  snapSuggestionCard: {
+    backgroundColor: 'rgba(64, 156, 255, 0.15)',
+    borderRadius: 10,
+    padding: 10,
+    gap: 6,
+  },
+  snapSuggestionTitle: {
+    color: '#6CB4FF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  snapSuggestionText: {
+    color: INACTIVE_TINT,
+    fontSize: 12,
+  },
+  snapSuggestionActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  snapAcceptButton: {
+    flex: 1,
+    backgroundColor: '#409CFF',
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  snapAcceptText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  snapDismissButton: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 253, 249, 0.08)',
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  snapDismissText: {
+    color: INACTIVE_TINT,
+    fontSize: 13,
+    fontWeight: '500',
   },
 });
