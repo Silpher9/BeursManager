@@ -7,7 +7,7 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
 import { migrateDbIfNeeded } from '@/src/db/migrate';
-import { setDatabaseReloadCallback } from '@/src/db/dbReload';
+import { setDatabaseReloadCallback, setMaintenanceCallback, confirmMaintenanceTransition } from '@/src/db/dbReload';
 import { ActiveFairDayBanner } from '@/src/shared/fair-day/ActiveFairDayBanner';
 import { FairDayModeProvider } from '@/src/shared/fair-day/FairDayModeProvider';
 import { LoadingView } from '@/src/shared/components/LoadingView';
@@ -24,6 +24,7 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [isClientReady, setIsClientReady] = useState(Platform.OS !== 'web');
+  const [isMaintenanceActive, setIsMaintenanceActive] = useState(false);
   const [dbKey, setDbKey] = useState(0);
 
   useEffect(() => {
@@ -33,12 +34,17 @@ export default function RootLayout() {
 
   useEffect(() => {
     setDatabaseReloadCallback(() => setDbKey((k) => k + 1));
+    setMaintenanceCallback(setIsMaintenanceActive);
   }, []);
 
-  if (!isClientReady) {
+  useEffect(() => {
+    confirmMaintenanceTransition();
+  }, [isMaintenanceActive]);
+
+  if (!isClientReady || isMaintenanceActive) {
     return (
       <ThemeProvider value={lightNavigationTheme}>
-        <LoadingView label="App voorbereiden..." />
+        <LoadingView label={isMaintenanceActive ? "Backup herstellen..." : "App voorbereiden..."} />
       </ThemeProvider>
     );
   }

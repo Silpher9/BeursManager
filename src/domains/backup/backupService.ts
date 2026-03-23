@@ -118,11 +118,9 @@ export async function pickAndValidateBackup(
 // ---------------------------------------------------------------------------
 
 export async function performRestore(
-  db: SQLiteDatabase,
+  currentDbPath: string,
   onProgress: (progress: BackupProgress) => void,
 ): Promise<void> {
-  const currentDbPath = db.databasePath;
-
   onProgress({ phase: 'restoring', message: 'Data herstellen...' });
 
   // Rollback-positie klaarzetten
@@ -130,11 +128,11 @@ export async function performRestore(
   await makeDirectoryAsync(ROLLBACK_DIR, { intermediates: true });
 
   try {
-    // Database sluiten
-    await db.closeAsync();
-
     // Huidige bestanden naar rollback verplaatsen
     await moveAsync({ from: currentDbPath, to: `${ROLLBACK_DIR}${DATABASE_NAME}` });
+    // WAL/SHM sidecar bestanden opruimen (data is al geflusht door provider's closeAsync)
+    await deleteAsync(`${currentDbPath}-wal`, { idempotent: true });
+    await deleteAsync(`${currentDbPath}-shm`, { idempotent: true });
 
     const artworkDirInfo = await getInfoAsync(ARTWORK_IMAGE_DIR);
     if (artworkDirInfo.exists) {
@@ -174,8 +172,6 @@ export async function performRestore(
     onProgress({ phase: 'cleanup', message: 'Afronden...' });
     await deleteAsync(ROLLBACK_DIR, { idempotent: true });
     await deleteAsync(BACKUP_TEMP_DIR, { idempotent: true });
-
-    triggerDatabaseReload();
   } catch (error) {
     // Rollback: originele data terugzetten
     try {
@@ -196,8 +192,6 @@ export async function performRestore(
         await deleteAsync(RECEIPT_IMAGE_DIR, { idempotent: true });
         await moveAsync({ from: `${ROLLBACK_DIR}receipt-images`, to: RECEIPT_IMAGE_DIR });
       }
-
-      triggerDatabaseReload();
     } catch (rollbackError) {
       console.error('Rollback mislukt:', rollbackError);
     }

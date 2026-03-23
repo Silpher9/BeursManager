@@ -7,6 +7,7 @@ import {
   performRestore,
   pickAndValidateBackup,
 } from '@/src/domains/backup/backupService';
+import { triggerDatabaseReload, setMaintenanceMode } from '@/src/db/dbReload';
 import {
   getConfiguredFalKey,
   getDemoSeedSummary,
@@ -133,21 +134,29 @@ export default function SettingsScreen() {
             text: 'Importeer',
             style: 'destructive',
             onPress: async () => {
+              const dbPath = db.databasePath;
               try {
-                await performRestore(db, (progress) => {
-                  setBackupStatus(progress.message);
+                await setMaintenanceMode(true);
+                await performRestore(dbPath, (progress) => {
+                  // status updating won't be visible while unmounted, but we keep it for consistency
+                  console.log('Restore progress:', progress.message);
                 });
 
-                setBackupBusy(null);
-                setBackupStatus('Backup succesvol hersteld.');
+                triggerDatabaseReload();
+                await setMaintenanceMode(false);
+                Alert.alert('Backup hersteld', 'De backup is succesvol hersteld.');
               } catch (restoreError) {
                 console.error('Restore failed:', restoreError);
-                setBackupBusy(null);
-                setBackupStatus(
+                await setMaintenanceMode(false);
+                Alert.alert(
+                  'Herstel mislukt',
                   restoreError instanceof Error
                     ? `Import mislukt: ${restoreError.message}`
-                    : 'Import mislukt.',
+                    : 'Import mislukt.'
                 );
+              } finally {
+                setBackupBusy(null);
+                setBackupStatus(null);
               }
             },
           },

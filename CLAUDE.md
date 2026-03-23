@@ -58,18 +58,67 @@ Plans/                # Planningsdocumenten en backlog
 SQLite met tabellen: artists, artworks, fairs, fair_artworks, sales, expenses, contacts, contact_artworks.
 Artwork statussen: beschikbaar, gereserveerd, ingepakt, op_beurs, verkocht.
 
+### Backup-restore lifecycle
+
+De `SQLiteProvider` in `_layout.tsx` is de **enige eigenaar** van de database open/close lifecycle. Backup-restore mag nooit zelf `db.closeAsync()` aanroepen op de provider's database-handle.
+
+Bij restore wordt de "maintenance mode" gebruikt (`setMaintenanceMode` in `dbReload.ts`):
+1. `await setMaintenanceMode(true)` — unmount provider (sluit db), wacht op bevestiging
+2. File swap (geen open connection)
+3. `triggerDatabaseReload()` + `await setMaintenanceMode(false)` — remount provider
+
+**Waarom:** expo-sqlite's `SQLiteProvider` doet `closeAsync()` in React cleanup (fire-and-forget). Een tweede `closeAsync()` op dezelfde handle veroorzaakt een onvangbare "Access to closed resource" rejection. De maintenance mode voorkomt dit door de provider eerst netjes te unmounten voordat bestanden worden verplaatst.
+
 ## Externe services
 
 - `@fal-ai/client` — AI beeldgeneratie (key via `EXPO_PUBLIC_FAL_KEY`)
+- `receipt-server/` — Bonnetje-scan API (Claude Haiku), poort 4010
+  - **Regressieset**: wijzigingen aan receipt-extractie alleen accepteren na vergelijking op de vaste testset in `Beursmanager_testbonnetjes/` (5 bonnetjes) met meetbare scorecard (succes/fail + veldkwaliteit). Set uitbreiden wanneer nieuwe edge cases opduiken.
 
-## Planning mode
+## Poortconventie
 
-- Sla het plan altijd op in `Plans/Running/` (bestandsnaam gebaseerd op het onderwerp)
-- Werk dit bestand bij zolang de planning-sessie loopt
-- Verplaats een plan naar `Plans/Archive/` wanneer het succesvol is uitgevoerd
-- Verplaats ook plannen ouder dan 1 dag naar `Plans/Archive/`
+Lokale servers voor BeursManager gebruiken poorten **4000–4050** om conflicten met andere projecten te voorkomen.
+
+| Service | Poort |
+|---------|-------|
+| Receipt-server | 4010 |
+
+## Werkwijze GitHub Issues
+
+- **Bron-van-waarheid** voor backlog, status en prioriteit: [GitHub Issues](https://github.com/Silpher9/BeursManager/issues) + [Project board](https://github.com/users/Silpher9/projects/1)
+- Bij start van een taak: `gh issue list` checken op relevante/overlappende issues
+- Nieuw idee of bug → GitHub Issue aanmaken met juiste label
+- Plan schrijven → `Plans/Running/`, bovenaan zowel `Issue: #XX` als `Gewenste statusactie: In Progress|Done` toevoegen
+- Aan de slag → Issue naar "In Progress" op het board
+- Klaar → Issue sluiten, plan naar `Plans/Archive/`
+
+## Plannen
+
+`Plans/Running/` en `Plans/Archive/` zijn voor **detailuitwerking** van issues, niet voor status of prioriteit.
+
+- Als een issue uitwerking nodig heeft: maak of update een plan in `Plans/Running/`, zet bovenaan `Issue: #XX`
+- Zet bij elk plan direct onder het issue ook `Gewenste statusactie: In Progress` of `Gewenste statusactie: Done`
+- Na uitvoering: verplaats het plan naar `Plans/Archive/`
+- Kijk voor open werk en prioriteit altijd naar [GitHub Issues](https://github.com/Silpher9/BeursManager/issues), niet naar `Plans/Running/`
+
+## Agentrollen
+
+- Gemini doet alleen research (analyse/verkenning), schrijft geen plannen en voert geen code uit
+- Plan- en code-uitvoering gebeurt door Claude en Codex
+
+## Git workflow
+
+- Voor je aan een issue werkt: check `git status` op ongecommitte wijzigingen
+- Na logisch afgerond en gevalideerd werk: commit met een duidelijke message in de vorm `type: korte beschrijving (#issue)`
+  - Types: feat, fix, refactor, test, docs
+- Push alleen als expliciet gevraagd of als dat voor deze workflow is afgesproken
+
+## iPad-testen
+
+SDK 55 + fysieke iPad = **development build** vereist, niet Expo Go.
+Expo Go in de App Store ondersteunt max SDK 52. Vanaf SDK 53+ moet je een development build gebruiken (`npx expo run:ios` met Mac/Xcode, of EAS Build via cloud).
 
 ## Huidige status
 
 Fases 0-5 (fundament, voorraad, beurzen, contacten, kosten, rapporten) zijn af. Home Hub is toegevoegd.
-Zie `Plans/backlog.md` voor actuele backlog.
+Zie [GitHub Issues](https://github.com/Silpher9/BeursManager/issues) en het [Project board](https://github.com/users/Silpher9/projects/1) voor actuele backlog en status.
