@@ -55,7 +55,10 @@
         removeWall(data.wallId);
       }
       if (data.type === 'updateWall' && data.wallId) {
-        updateWall(data.wallId, data.width, data.height);
+        updateWall(data.wallId, data.width, data.height, data.depth);
+      }
+      if (data.type === 'setRotationSnap') {
+        setRotationSnap(data.enabled, data.degrees);
       }
     }
 
@@ -81,8 +84,9 @@
 
       var w = cmToM(config.width);
       var h = cmToM(config.height);
+      var d = cmToM(config.depth);
       var mesh = BABYLON.MeshBuilder.CreateBox('wall_' + config.id, {
-        width: w, height: h, depth: 0.1
+        width: w, height: h, depth: d
       }, scene);
       mesh.position = new BABYLON.Vector3(0, h / 2, 0);
       mesh.material = createWallMaterial(config.id);
@@ -110,7 +114,7 @@
       }
     }
 
-    function updateWall(wallId, width, height) {
+    function updateWall(wallId, width, height, depth) {
       var entry = walls[wallId];
       if (!entry) return;
 
@@ -122,8 +126,9 @@
 
       var w = cmToM(width);
       var h = cmToM(height);
+      var d = cmToM(depth);
       var mesh = BABYLON.MeshBuilder.CreateBox('wall_' + wallId, {
-        width: w, height: h, depth: 0.1
+        width: w, height: h, depth: d
       }, scene);
       mesh.position = pos;
       mesh.position.y = h / 2;
@@ -138,6 +143,7 @@
       entry.mesh = mesh;
       entry.config.width = width;
       entry.config.height = height;
+      entry.config.depth = depth;
 
       if (selectedWallId === wallId && gizmoManager) {
         gizmoManager.attachToMesh(mesh);
@@ -159,6 +165,14 @@
       sendToApp({ type: 'wallSelected', wallId: null });
     }
 
+    // --- Rotation snap ---
+    function setRotationSnap(enabled, degrees) {
+      if (!gizmoManager || !gizmoManager.gizmos.rotationGizmo) return;
+      var rotGizmo = gizmoManager.gizmos.rotationGizmo;
+      var snap = enabled ? (degrees * Math.PI / 180) : 0;
+      rotGizmo.yGizmo.snapDistance = snap;
+    }
+
     // --- Scene init ---
     function initScene() {
       try {
@@ -171,9 +185,9 @@
         // Camera
         var camera = new BABYLON.ArcRotateCamera(
           'camera',
-          -Math.PI / 4,       // alpha: 45 graden
-          Math.PI / 3,        // beta: 60 graden
-          8,                   // radius: 8 meter
+          -Math.PI / 4,
+          Math.PI / 3,
+          8,
           new BABYLON.Vector3(0, 1, 0),
           scene
         );
@@ -215,14 +229,27 @@
         gizmoManager.scaleGizmoEnabled = false;
         gizmoManager.boundingBoxGizmoEnabled = false;
         gizmoManager.usePointerToAttachGizmos = false;
+
         // Beperk positie-gizmo tot X en Z (niet Y)
         if (gizmoManager.gizmos.positionGizmo) {
-          gizmoManager.gizmos.positionGizmo.yGizmo.isEnabled = false;
+          var posGizmo = gizmoManager.gizmos.positionGizmo;
+          posGizmo.yGizmo.isEnabled = false;
+          // Vergroot gizmo handles voor betere touch-interactie
+          posGizmo.scaleRatio = 1.5;
         }
+
         // Beperk rotatie-gizmo tot Y (alleen draaien rond verticale as)
         if (gizmoManager.gizmos.rotationGizmo) {
-          gizmoManager.gizmos.rotationGizmo.xGizmo.isEnabled = false;
-          gizmoManager.gizmos.rotationGizmo.zGizmo.isEnabled = false;
+          var rotGizmo = gizmoManager.gizmos.rotationGizmo;
+          rotGizmo.xGizmo.isEnabled = false;
+          rotGizmo.zGizmo.isEnabled = false;
+          // Vergroot rotatie ring voor betere touch-interactie
+          rotGizmo.scaleRatio = 1.5;
+        }
+
+        // Vergroot gizmo utility layer pointer precision voor touch
+        if (gizmoManager.utilityLayer) {
+          gizmoManager.utilityLayer.utilityLayerScene.pointerMovePredicate = function () { return true; };
         }
 
         // Klik op wand = selecteer, klik op grond/lucht = deselecteer

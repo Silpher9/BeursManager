@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 
+import { StandEditorProvider } from '@/src/domains/stand/StandEditorContext';
 import { FloatingSidebar } from '@/src/shared/components/FloatingSidebar';
 import { useResponsive } from '@/src/shared/hooks/useResponsive';
 import { palette } from '@/src/shared/theme/colors';
@@ -9,6 +10,7 @@ export default function TabLayout() {
   const { isTablet } = useResponsive();
 
   return (
+    <StandEditorProvider>
     <Tabs
       tabBar={isTablet ? (props) => <FloatingSidebar {...props} /> : undefined}
       screenOptions={{
@@ -116,6 +118,7 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </StandEditorProvider>
   );
 }
 

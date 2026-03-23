@@ -3,6 +3,7 @@ import { CommonActions } from '@react-navigation/native';
 import { router, usePathname } from 'expo-router';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { StandEditorSidebar } from '@/src/domains/stand/StandEditorSidebar';
 import { useFairDayMode } from '@/src/shared/fair-day/FairDayModeProvider';
 import { FairDaySidebarCard } from '@/src/shared/fair-day/FairDaySidebarCard';
 import { palette } from '@/src/shared/theme/colors';
@@ -16,11 +17,24 @@ export function FloatingSidebar({ state, descriptors, navigation, insets }: Bott
   const { activeFair, deactivateFairDay } = useFairDayMode();
   const pathname = usePathname();
 
+  const activeRoute = state.routes[state.index];
+  const isStandActive = activeRoute?.name === 'stand';
+
   const closeFairDay = () => {
     const fairId = activeFair?.fairId;
     deactivateFairDay();
     if (pathname === `/fairs/${fairId}/day`) {
       router.replace(`/fairs/${fairId}`);
+    }
+  };
+
+  const navigateToHome = () => {
+    const homeRoute = state.routes.find(r => r.name === 'index');
+    if (homeRoute) {
+      navigation.dispatch({
+        ...CommonActions.navigate(homeRoute),
+        target: state.key,
+      });
     }
   };
 
@@ -36,70 +50,126 @@ export function FloatingSidebar({ state, descriptors, navigation, insets }: Bott
       ]}
     >
       <View style={styles.floatingCard}>
-        <Image
-          source={require('@/assets/images/logo-monogram.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <View style={styles.separator} />
-
-        {activeFair && (
+        {isStandActive ? (
+          <StandEditorSidebar onBack={navigateToHome} />
+        ) : (
           <>
-            <FairDaySidebarCard
-              fairName={activeFair.fairName}
-              onOpenOverview={() => router.push(`/fairs/${activeFair.fairId}/day`)}
-              onDeactivate={closeFairDay}
+            <Image
+              source={require('@/assets/images/logo-monogram.png')}
+              style={styles.logo}
+              resizeMode="contain"
             />
             <View style={styles.separator} />
+
+            {activeFair && (
+              <>
+                <FairDaySidebarCard
+                  fairName={activeFair.fairName}
+                  onOpenOverview={() => router.push(`/fairs/${activeFair.fairId}/day`)}
+                  onDeactivate={closeFairDay}
+                />
+                <View style={styles.separator} />
+              </>
+            )}
+
+            <View style={styles.itemsContainer}>
+              {state.routes.map((route, index) => {
+                if (route.name === 'stand') return null;
+
+                const { options } = descriptors[route.key];
+                const isFocused = state.index === index;
+                const tintColor = isFocused ? ACTIVE_TINT : INACTIVE_TINT;
+
+                const onPress = () => {
+                  const event = navigation.emit({
+                    type: 'tabPress',
+                    target: route.key,
+                    canPreventDefault: true,
+                  });
+
+                  if (!isFocused && !event.defaultPrevented) {
+                    navigation.dispatch({
+                      ...CommonActions.navigate(route),
+                      target: state.key,
+                    });
+                  }
+                };
+
+                return (
+                  <Pressable
+                    key={route.key}
+                    onPress={onPress}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: isFocused }}
+                    aria-selected={isFocused}
+                    accessibilityLabel={options.tabBarAccessibilityLabel}
+                    style={[styles.tabItem, isFocused && styles.tabItemActive]}
+                  >
+                    {options.tabBarIcon?.({
+                      focused: isFocused,
+                      color: tintColor,
+                      size: 22,
+                    })}
+                    <Text
+                      style={[styles.tabLabel, { color: tintColor }, isFocused && styles.tabLabelActive]}
+                      numberOfLines={1}
+                    >
+                      {options.title ?? route.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Stand tab — visueel gescheiden onderaan */}
+            {state.routes.map((route, index) => {
+              if (route.name !== 'stand') return null;
+
+              const { options } = descriptors[route.key];
+              const isFocused = state.index === index;
+              const tintColor = isFocused ? ACTIVE_TINT : INACTIVE_TINT;
+
+              const onPress = () => {
+                const event = navigation.emit({
+                  type: 'tabPress',
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+
+                if (!isFocused && !event.defaultPrevented) {
+                  navigation.dispatch({
+                    ...CommonActions.navigate(route),
+                    target: state.key,
+                  });
+                }
+              };
+
+              return (
+                <Pressable
+                  key={route.key}
+                  onPress={onPress}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: isFocused }}
+                  aria-selected={isFocused}
+                  accessibilityLabel={options.tabBarAccessibilityLabel}
+                  style={[styles.standItem, isFocused && styles.standItemActive]}
+                >
+                  {options.tabBarIcon?.({
+                    focused: isFocused,
+                    color: tintColor,
+                    size: 36,
+                  })}
+                  <Text
+                    style={[styles.standLabel, { color: tintColor }, isFocused && styles.tabLabelActive]}
+                    numberOfLines={1}
+                  >
+                    {options.title ?? route.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </>
         )}
-
-        <View style={styles.itemsContainer}>
-          {state.routes.map((route, index) => {
-            const { options } = descriptors[route.key];
-            const isFocused = state.index === index;
-            const tintColor = isFocused ? ACTIVE_TINT : INACTIVE_TINT;
-
-            const onPress = () => {
-              const event = navigation.emit({
-                type: 'tabPress',
-                target: route.key,
-                canPreventDefault: true,
-              });
-
-              if (!isFocused && !event.defaultPrevented) {
-                navigation.dispatch({
-                  ...CommonActions.navigate(route),
-                  target: state.key,
-                });
-              }
-            };
-
-            return (
-              <Pressable
-                key={route.key}
-                onPress={onPress}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: isFocused }}
-                aria-selected={isFocused}
-                accessibilityLabel={options.tabBarAccessibilityLabel}
-                style={[styles.tabItem, isFocused && styles.tabItemActive]}
-              >
-                {options.tabBarIcon?.({
-                  focused: isFocused,
-                  color: tintColor,
-                  size: 22,
-                })}
-                <Text
-                  style={[styles.tabLabel, { color: tintColor }, isFocused && styles.tabLabelActive]}
-                  numberOfLines={1}
-                >
-                  {options.title ?? route.name}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
       </View>
     </View>
   );
@@ -153,5 +223,24 @@ const styles = StyleSheet.create({
   },
   tabLabelActive: {
     fontWeight: '700',
+  },
+  standItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 253, 249, 0.1)',
+    marginTop: 8,
+    gap: 6,
+  },
+  standItemActive: {
+    backgroundColor: ACTIVE_ITEM_BG,
+  },
+  standLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

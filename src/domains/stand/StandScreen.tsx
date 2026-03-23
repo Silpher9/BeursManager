@@ -1,23 +1,25 @@
 import { Asset } from 'expo-asset';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
-import type { AppToWebViewMessage, WallConfig, WebViewToAppMessage } from '@/src/domains/stand/types';
+import type { WebViewToAppMessage } from '@/src/domains/stand/types';
+import { useResponsive } from '@/src/shared/hooks/useResponsive';
 import { palette } from '@/src/shared/theme/colors';
+
+import { useStandEditor } from './StandEditorContext';
 
 import sceneHtml from '@/src/domains/stand/webview/scene.html';
 
-let wallCounter = 0;
-
 export function StandScreen() {
-  const webViewRef = useRef<WebView>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [htmlUri, setHtmlUri] = useState<string | null>(null);
-  const [sceneReady, setSceneReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [walls, setWalls] = useState<WallConfig[]>([]);
-  const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
+  const { isTablet } = useResponsive();
+  const insets = useSafeAreaInsets();
+
+  const { walls, sceneReady, snapEnabled, snapDegrees, selectedWallId, addWall, removeSelectedWall, setSceneReady, sendMessage, setSelectedWallId, registerWebView, registerIframe } = useStandEditor();
 
   useEffect(() => {
     let cancelled = false;
@@ -40,19 +42,26 @@ export function StandScreen() {
     return () => { cancelled = true; };
   }, []);
 
-  const sendMessage = useCallback((message: AppToWebViewMessage) => {
-    const json = JSON.stringify(message);
+  // Register iframe ref for context's sendMessage
+  useEffect(() => {
     if (Platform.OS === 'web') {
-      iframeRef.current?.contentWindow?.postMessage(json, '*');
-    } else {
-      webViewRef.current?.postMessage(json);
+      registerIframe(iframeRef.current);
     }
-  }, []);
+  }, [htmlUri, registerIframe]);
+
+  // Replay state naar WebView na (re)mount
+  const replayState = useCallback(() => {
+    walls.forEach(wall => sendMessage({ type: 'addWall', wall }));
+    if (snapEnabled) {
+      sendMessage({ type: 'setRotationSnap', enabled: true, degrees: snapDegrees });
+    }
+  }, [walls, snapEnabled, snapDegrees, sendMessage]);
 
   const handleIncomingMessage = useCallback((data: WebViewToAppMessage) => {
     if (data.type === 'sceneReady') {
       setSceneReady(true);
       sendMessage({ type: 'ping' });
+      replayState();
     }
     if (data.type === 'pong') {
       console.log('Bridge werkt: pong ontvangen');
@@ -64,7 +73,7 @@ export function StandScreen() {
     if (data.type === 'wallSelected') {
       setSelectedWallId(data.wallId);
     }
-  }, [sendMessage]);
+  }, [sendMessage, setSceneReady, setSelectedWallId, replayState]);
 
   // Web: luister naar postMessage van iframe
   useEffect(() => {
@@ -94,42 +103,6 @@ export function StandScreen() {
     handleIncomingMessage(data);
   }
 
-  function addWall() {
-    wallCounter++;
-    const wall: WallConfig = {
-      id: `wall-${wallCounter}`,
-      width: 300,
-      height: 250,
-    };
-    setWalls(prev => [...prev, wall]);
-    sendMessage({ type: 'addWall', wall });
-  }
-
-  function removeSelectedWall() {
-    if (!selectedWallId) return;
-    sendMessage({ type: 'removeWall', wallId: selectedWallId });
-    setWalls(prev => prev.filter(w => w.id !== selectedWallId));
-    setSelectedWallId(null);
-  }
-
-  function updateWallDimension(wallId: string, field: 'width' | 'height', value: string) {
-    const num = parseInt(value, 10);
-    if (isNaN(num) || num < 50 || num > 1000) return;
-
-    setWalls(prev => prev.map(w => w.id === wallId ? { ...w, [field]: num } : w));
-    const wall = walls.find(w => w.id === wallId);
-    if (wall) {
-      sendMessage({
-        type: 'updateWall',
-        wallId,
-        width: field === 'width' ? num : wall.width,
-        height: field === 'height' ? num : wall.height,
-      });
-    }
-  }
-
-  const selectedWall = walls.find(w => w.id === selectedWallId);
-
   if (error) {
     return (
       <View style={styles.centered}>
@@ -147,35 +120,16 @@ export function StandScreen() {
     );
   }
 
-  const toolbar = sceneReady ? (
-    <View style={styles.toolbar}>
-      <View style={styles.toolbarRow}>
-        <Pressable style={styles.button} onPress={addWall}>
-          <Text style={styles.buttonText}>+ Wand</Text>
+  // Compacte phone toolbar (alleen als sidebar niet beschikbaar is)
+  const phoneToolbar = !isTablet && sceneReady ? (
+    <View style={[styles.phoneToolbar, { top: Math.max(12, insets.top + 4) }]}>
+      <Pressable style={styles.phoneButton} onPress={addWall}>
+        <Text style={styles.phoneButtonText}>+ Wand</Text>
+      </Pressable>
+      {selectedWallId && (
+        <Pressable style={styles.phoneDeleteButton} onPress={removeSelectedWall}>
+          <Text style={styles.phoneDeleteText}>Verwijder</Text>
         </Pressable>
-        {selectedWallId && (
-          <Pressable style={[styles.button, styles.dangerButton]} onPress={removeSelectedWall}>
-            <Text style={[styles.buttonText, styles.dangerText]}>Verwijder</Text>
-          </Pressable>
-        )}
-      </View>
-      {selectedWall && (
-        <View key={selectedWall.id} style={styles.dimensionRow}>
-          <Text style={styles.dimensionLabel}>Breedte (cm):</Text>
-          <TextInput
-            style={styles.dimensionInput}
-            keyboardType="numeric"
-            defaultValue={String(selectedWall.width)}
-            onEndEditing={(e) => updateWallDimension(selectedWall.id, 'width', e.nativeEvent.text)}
-          />
-          <Text style={styles.dimensionLabel}>Hoogte (cm):</Text>
-          <TextInput
-            style={styles.dimensionInput}
-            keyboardType="numeric"
-            defaultValue={String(selectedWall.height)}
-            onEndEditing={(e) => updateWallDimension(selectedWall.id, 'height', e.nativeEvent.text)}
-          />
-        </View>
       )}
     </View>
   ) : null;
@@ -183,43 +137,10 @@ export function StandScreen() {
   if (Platform.OS === 'web') {
     return (
       <View style={styles.container}>
-        {toolbar}
-        <View style={styles.sceneContainer}>
-          <iframe
-            ref={iframeRef as React.RefObject<HTMLIFrameElement>}
-            src={htmlUri}
-            style={{ flex: 1, border: 'none', width: '100%', height: '100%' } as unknown as object}
-          />
-          {!sceneReady && (
-            <View style={styles.loadingOverlay}>
-              <ActivityIndicator size="large" color={palette.accent} />
-              <Text style={styles.loadingText}>3D scene laden...</Text>
-            </View>
-          )}
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      {toolbar}
-      <View style={styles.sceneContainer}>
-        <WebView
-          ref={webViewRef}
-          source={{ uri: htmlUri }}
-          onMessage={handleMessage}
-          onError={() => setError('Er ging iets mis bij het laden van de 3D scene.')}
-          style={styles.webview}
-          scrollEnabled={false}
-          bounces={false}
-          javaScriptEnabled
-          domStorageEnabled
-          allowsInlineMediaPlayback
-          mediaPlaybackRequiresUserAction={false}
-          allowFileAccessFromFileURLs
-          allowUniversalAccessFromFileURLs
-          originWhitelist={['*']}
+        <iframe
+          ref={iframeRef as React.RefObject<HTMLIFrameElement>}
+          src={htmlUri}
+          style={{ flex: 1, border: 'none', width: '100%', height: '100%' } as unknown as object}
         />
         {!sceneReady && (
           <View style={styles.loadingOverlay}>
@@ -227,7 +148,36 @@ export function StandScreen() {
             <Text style={styles.loadingText}>3D scene laden...</Text>
           </View>
         )}
+        {phoneToolbar}
       </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <WebView
+        ref={(ref) => registerWebView(ref)}
+        source={{ uri: htmlUri }}
+        onMessage={handleMessage}
+        onError={() => setError('Er ging iets mis bij het laden van de 3D scene.')}
+        style={styles.webview}
+        scrollEnabled={false}
+        bounces={false}
+        javaScriptEnabled
+        domStorageEnabled
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+        allowFileAccessFromFileURLs
+        allowUniversalAccessFromFileURLs
+        originWhitelist={['*']}
+      />
+      {!sceneReady && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={palette.accent} />
+          <Text style={styles.loadingText}>3D scene laden...</Text>
+        </View>
+      )}
+      {phoneToolbar}
     </View>
   );
 }
@@ -236,9 +186,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: palette.background,
-  },
-  sceneContainer: {
-    flex: 1,
   },
   webview: {
     flex: 1,
@@ -268,55 +215,35 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 32,
   },
-  toolbar: {
-    backgroundColor: palette.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+  phoneToolbar: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    flexDirection: 'row',
     gap: 8,
   },
-  toolbarRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  button: {
+  phoneButton: {
     backgroundColor: palette.accent,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
   },
-  buttonText: {
+  phoneButtonText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
   },
-  dangerButton: {
+  phoneDeleteButton: {
     backgroundColor: palette.surface,
     borderWidth: 1,
     borderColor: palette.danger,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
-  dangerText: {
+  phoneDeleteText: {
     color: palette.danger,
-  },
-  dimensionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dimensionLabel: {
-    fontSize: 13,
-    color: palette.text,
-  },
-  dimensionInput: {
-    backgroundColor: palette.background,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    width: 70,
     fontSize: 14,
-    color: palette.text,
+    fontWeight: '600',
   },
 });
