@@ -1,9 +1,12 @@
 import { Asset } from 'expo-asset';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSQLiteContext } from 'expo-sqlite';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
+import { listFairs } from '@/src/domains/fairs/repository';
+import type { FairListItem } from '@/src/domains/fairs/types';
 import type { WebViewToAppMessage } from '@/src/domains/stand/types';
 import { useResponsive } from '@/src/shared/hooks/useResponsive';
 import { palette } from '@/src/shared/theme/colors';
@@ -18,8 +21,15 @@ export function StandScreen() {
   const [error, setError] = useState<string | null>(null);
   const { isTablet } = useResponsive();
   const insets = useSafeAreaInsets();
+  const db = useSQLiteContext();
+  const [fairs, setFairs] = useState<FairListItem[]>([]);
 
-  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedWallId, addWall, removeSelectedWall, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, replayTransforms, registerWebView, registerIframe } = useStandEditor();
+  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedFairId, selectedWallId, addWall, removeSelectedWall, selectFair, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, replayTransforms, registerWebView, registerIframe } = useStandEditor();
+
+  // Fetch fairs for selection gate
+  useEffect(() => {
+    listFairs(db).then(setFairs);
+  }, [db]);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,6 +121,33 @@ export function StandScreen() {
       return;
     }
     handleIncomingMessage(data);
+  }
+
+  // Fair selection gate — must choose a fair before entering the editor
+  if (!selectedFairId) {
+    return (
+      <View style={[styles.fairGate, { paddingTop: Math.max(32, insets.top + 16) }]}>
+        <Text style={styles.fairGateTitle}>Stand Configurator</Text>
+        <Text style={styles.fairGateSubtitle}>Kies een beurs om te beginnen</Text>
+        <FlatList
+          data={fairs}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.fairGateList}
+          renderItem={({ item }) => (
+            <Pressable style={styles.fairGateItem} onPress={() => selectFair(item.id)}>
+              <Text style={styles.fairGateItemName}>{item.name}</Text>
+              {item.location && <Text style={styles.fairGateItemDetail}>{item.location}</Text>}
+              {item.startDate && item.endDate && (
+                <Text style={styles.fairGateItemDetail}>{item.startDate} — {item.endDate}</Text>
+              )}
+            </Pressable>
+          )}
+          ListEmptyComponent={
+            <Text style={styles.fairGateEmpty}>Geen beurzen gevonden. Maak eerst een beurs aan via Beurzen.</Text>
+          }
+        />
+      </View>
+    );
   }
 
   if (error) {
@@ -224,6 +261,46 @@ const styles = StyleSheet.create({
     color: palette.danger,
     textAlign: 'center',
     paddingHorizontal: 32,
+  },
+  fairGate: {
+    flex: 1,
+    backgroundColor: palette.background,
+    paddingHorizontal: 32,
+  },
+  fairGateTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: palette.text,
+    marginBottom: 4,
+  },
+  fairGateSubtitle: {
+    fontSize: 16,
+    color: palette.mutedText,
+    marginBottom: 24,
+  },
+  fairGateList: {
+    gap: 12,
+  },
+  fairGateItem: {
+    backgroundColor: palette.surface,
+    borderRadius: 12,
+    padding: 16,
+    gap: 4,
+  },
+  fairGateItemName: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: palette.text,
+  },
+  fairGateItemDetail: {
+    fontSize: 14,
+    color: palette.mutedText,
+  },
+  fairGateEmpty: {
+    fontSize: 15,
+    color: palette.mutedText,
+    textAlign: 'center',
+    paddingVertical: 32,
   },
   phoneToolbar: {
     position: 'absolute',

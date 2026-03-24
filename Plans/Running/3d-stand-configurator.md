@@ -222,6 +222,18 @@ Kunstenaars kunnen hun beursstand in 3D inrichten: wanden plaatsen, kunstwerken 
 
 ---
 
+## Fase 7: Customisatie
+
+**Doel**: visuele aanpassingen aan de stand.
+
+**7a: Wandkleur**
+- Kleurenpicker per wand in sidebar
+- Standaard wit, aanpasbaar
+
+Uitbreidbaar met toekomstige subfases (vloerkleur, texturen, etc.)
+
+---
+
 ## Fase 6+: Optimalisatie en uitbreidingen (later)
 
 - **Lightmap baking** via 3090 server (UV2 generatie voor procedurale meshes)

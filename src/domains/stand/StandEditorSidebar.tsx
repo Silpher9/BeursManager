@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 
 import { listFairs } from '@/src/domains/fairs/repository';
@@ -45,6 +45,22 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     listFairs(db).then(setFairs);
   }, [db]);
+
+  const handleFairSelect = (fairId: string) => {
+    if (fairId === selectedFairId) return;
+    if (hasUnsavedChanges) {
+      Alert.alert(
+        'Niet-opgeslagen wijzigingen',
+        'Je hebt niet-opgeslagen wijzigingen. Wil je wisselen zonder op te slaan?',
+        [
+          { text: 'Annuleer', style: 'cancel' },
+          { text: 'Wisselen', style: 'destructive', onPress: () => selectFair(fairId) },
+        ],
+      );
+      return;
+    }
+    selectFair(fairId);
+  };
 
   const selectedWall = walls.find(w => w.id === selectedWallId);
 
@@ -196,7 +212,7 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
             <Pressable
               key={fair.id}
               style={[styles.fairItem, selectedFairId === fair.id && styles.fairItemActive]}
-              onPress={() => selectFair(fair.id)}
+              onPress={() => handleFairSelect(fair.id)}
             >
               <Text style={[styles.fairItemText, selectedFairId === fair.id && styles.fairItemTextActive]} numberOfLines={1}>
                 {fair.name}
@@ -321,6 +337,8 @@ const styles = StyleSheet.create({
   },
   fairSection: {
     marginTop: 'auto' as unknown as number,
+    marginBottom: 4,
+    gap: 8,
   },
   fairList: {
     maxHeight: 120,
@@ -352,7 +370,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   saveButton: {
-    flex: 1,
     backgroundColor: ACCENT,
     paddingVertical: 10,
     borderRadius: 10,

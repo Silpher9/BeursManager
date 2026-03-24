@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     backgroundColor: SIDEBAR_BG,
     borderRadius: 20,
     paddingTop: 24,
-    paddingBottom: 16,
+    paddingBottom: 24,
     paddingHorizontal: 12,
     boxShadow: '2px 4px 12px rgba(0, 0, 0, 0.18)',
     elevation: 8,
