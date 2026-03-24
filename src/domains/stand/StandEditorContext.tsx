@@ -459,6 +459,24 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       return isNaN(num) ? max : Math.max(max, num);
     }, 0);
     wallCounter = maxNum;
+
+    // Load placed artworks
+    if (config.artworks && config.artworks.length > 0) {
+      for (const art of config.artworks) {
+        sendMessage({
+          type: 'placeArtwork',
+          artworkId: art.artworkId,
+          wallId: art.wallId,
+          position: art.position,
+          hitNormal: art.hitNormal,
+          heightCm: art.heightCm,
+          widthCm: art.widthCm,
+          imageUri: art.imageUri,
+          isLocal: true,
+        });
+      }
+      setPlacedArtworks(config.artworks);
+    }
   }, [db, walls, sendMessage]);
 
   const saveCurrentConfig = useCallback(async () => {
@@ -470,10 +488,11 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
         position: wallTransforms.current[w.id]?.position ?? { x: 0, y: 0, z: 0 },
         rotation: wallTransforms.current[w.id]?.rotation ?? { x: 0, y: 0, z: 0 },
       })),
+      artworks: placedArtworks,
     };
     await saveStandConfig(db, selectedFairId, doc);
     setHasUnsavedChanges(false);
-  }, [db, selectedFairId, walls]);
+  }, [db, selectedFairId, walls, placedArtworks]);
 
   const registerWebView = useCallback((ref: WebView | null) => {
     webViewRef.current = ref;
