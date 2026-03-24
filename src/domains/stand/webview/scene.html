@@ -187,6 +187,7 @@
         }
       }
       createLabel(wallId);
+      updateDistanceLabels(); // wall resize may change artwork-to-edge distances
 
       if (selectedWallId === wallId && gizmoManager) {
         gizmoManager.attachToMesh(mesh);
@@ -289,6 +290,12 @@
 
     function setEditorMode(mode) {
       editorMode = mode;
+      // Update distance labels visibility
+      if (mode === 'view') {
+        clearDistanceLabels();
+      } else {
+        updateDistanceLabels();
+      }
       // Enable/disable artwork drag behaviors
       var artIds = Object.keys(placedArtworks);
       for (var ai = 0; ai < artIds.length; ai++) {
@@ -422,6 +429,9 @@
         artDragStartPos = { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z };
         selectArtwork(artworkId);
       });
+      dragBehavior.onDragObservable.add(function () {
+        updateDistanceLabels(); // live update during drag
+      });
       dragBehavior.onDragEndObservable.add(function () {
         if (artDragStartPos) {
           var newPos = { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z };
@@ -437,6 +447,7 @@
           artDragStartPos = null;
         }
         checkArtworkOverlaps(wallId);
+        updateDistanceLabels();
       });
       mesh.addBehavior(dragBehavior);
 
@@ -472,6 +483,7 @@
       if (selectedArtworkId === artworkId) {
         selectedArtworkId = null;
         sendToApp({ type: 'artworkSelected', artworkId: null });
+        clearDistanceLabels();
       }
       checkArtworkOverlaps(removedWallId);
     }
@@ -481,6 +493,7 @@
       if (!entry) return;
       entry.mesh.position = new BABYLON.Vector3(localPosition.x, localPosition.y, localPosition.z);
       checkArtworkOverlaps(entry.wallId);
+      updateDistanceLabels();
     }
 
     // --- Artwork overlap detection ---
@@ -556,9 +569,97 @@
       }
     }
 
+    // --- Artwork distance labels ---
+    var distanceLabels = []; // array of GUI controls
+
+    function clearDistanceLabels() {
+      for (var i = 0; i < distanceLabels.length; i++) {
+        if (guiTexture) guiTexture.removeControl(distanceLabels[i]);
+        distanceLabels[i].dispose();
+      }
+      distanceLabels = [];
+    }
+
+    function updateDistanceLabels() {
+      clearDistanceLabels();
+      if (editorMode !== 'build' || !selectedArtworkId || !guiTexture) return;
+
+      var artEntry = placedArtworks[selectedArtworkId];
+      if (!artEntry) return;
+      var wallEntry = walls[artEntry.wallId];
+      if (!wallEntry) return;
+
+      var mesh = artEntry.mesh;
+      var bb = mesh.getBoundingInfo().boundingBox;
+      var hw = bb.extendSize.x; // artwork half width
+      var hh = bb.extendSize.y; // artwork half height
+
+      // Wall local bounds (center-based)
+      var wallHW = cmToM(wallEntry.config.width) / 2;
+      var wallHH = cmToM(wallEntry.config.height) / 2;
+
+      // Artwork edges in local space
+      var artLeft = mesh.position.x - hw;
+      var artRight = mesh.position.x + hw;
+      var artBottom = mesh.position.y - hh;
+      var artTop = mesh.position.y + hh;
+
+      // Distances to wall edges
+      var distLeft = artLeft - (-wallHW);
+      var distRight = wallHW - artRight;
+      var distBottom = artBottom - (-wallHH);
+      var distTop = wallHH - artTop;
+
+      var measurements = [
+        { value: distLeft, label: 'L' },
+        { value: distRight, label: 'R' },
+        { value: distBottom, label: 'B' },
+        { value: distTop, label: 'T' },
+      ];
+
+      for (var m = 0; m < measurements.length; m++) {
+        var cm = Math.round(measurements[m].value * 100);
+        var rect = new BABYLON.GUI.Rectangle('dist_' + measurements[m].label);
+        rect.width = '56px';
+        rect.height = '20px';
+        rect.cornerRadius = 4;
+        rect.color = 'transparent';
+        rect.background = 'rgba(64, 156, 255, 0.8)';
+        rect.thickness = 0;
+
+        var text = new BABYLON.GUI.TextBlock();
+        text.text = cm + ' cm';
+        text.color = '#fff';
+        text.fontSize = 10;
+        text.fontWeight = 'bold';
+        rect.addControl(text);
+
+        guiTexture.addControl(rect);
+        rect.linkWithMesh(mesh);
+
+        // Position label relative to artwork
+        if (measurements[m].label === 'L') {
+          rect.linkOffsetXInPixels = -60;
+          rect.linkOffsetYInPixels = 0;
+        } else if (measurements[m].label === 'R') {
+          rect.linkOffsetXInPixels = 60;
+          rect.linkOffsetYInPixels = 0;
+        } else if (measurements[m].label === 'B') {
+          rect.linkOffsetXInPixels = 0;
+          rect.linkOffsetYInPixels = 30;
+        } else if (measurements[m].label === 'T') {
+          rect.linkOffsetXInPixels = 0;
+          rect.linkOffsetYInPixels = -30;
+        }
+
+        distanceLabels.push(rect);
+      }
+    }
+
     function selectArtwork(artworkId) {
       selectedArtworkId = artworkId;
       sendToApp({ type: 'artworkSelected', artworkId: artworkId });
+      updateDistanceLabels();
     }
 
     // --- Wall snapping ---
@@ -891,6 +992,7 @@
           if (selectedArtworkId) {
             selectedArtworkId = null;
             sendToApp({ type: 'artworkSelected', artworkId: null });
+            clearDistanceLabels();
           }
         });
 
