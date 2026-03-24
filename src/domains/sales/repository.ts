@@ -144,11 +144,12 @@ export async function listSaleCandidatesForFair(db: SQLiteDatabase, fairId: stri
   })) satisfies SaleCandidate[];
 }
 
-export async function createSaleForFair(
-  db: SQLiteDatabase,
+/** Core sale creation logic — works on any db handle, does NOT open its own transaction. */
+export async function createSaleForFairCore(
+  database: SQLiteDatabase,
   fairId: string,
   values: SaleEditorValues
-) {
+): Promise<string> {
   const saleId = randomUUID();
   const now = new Date().toISOString();
   const askingPrice = parseOptionalNumber(values.askingPrice) ?? 0;
@@ -156,20 +157,7 @@ export async function createSaleForFair(
   const salePrice = computeSalePrice(values);
   const hasInlineContact = Boolean(values.contactName.trim());
 
-  const runWriteTransaction = async (task: (database: SQLiteDatabase) => Promise<void>) => {
-    if (Platform.OS === 'web') {
-      await db.withTransactionAsync(async () => {
-        await task(db);
-      });
-      return;
-    }
-
-    await db.withExclusiveTransactionAsync(async (txn) => {
-      await task(txn);
-    });
-  };
-
-  await runWriteTransaction(async (database) => {
+  {
     const contactId = hasInlineContact
       ? await saveContact(database, {
           name: values.contactName,
@@ -231,9 +219,30 @@ export async function createSaleForFair(
     if (contactId) {
       await upsertContactArtworkLink(database, contactId, values.artworkId, fairId);
     }
-  });
+  }
 
   return saleId;
+}
+
+/** Transactional wrapper around createSaleForFairCore — for use outside existing transactions. */
+export async function createSaleForFair(
+  db: SQLiteDatabase,
+  fairId: string,
+  values: SaleEditorValues
+): Promise<string> {
+  let saleId: string;
+
+  if (Platform.OS === 'web') {
+    await db.withTransactionAsync(async () => {
+      saleId = await createSaleForFairCore(db, fairId, values);
+    });
+  } else {
+    await db.withExclusiveTransactionAsync(async (txn) => {
+      saleId = await createSaleForFairCore(txn, fairId, values);
+    });
+  }
+
+  return saleId!;
 }
 
 export async function updateSale(db: SQLiteDatabase, saleId: string, values: SaleEditorValues) {

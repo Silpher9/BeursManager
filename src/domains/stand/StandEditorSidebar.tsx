@@ -5,6 +5,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { listFairs } from '@/src/domains/fairs/repository';
 import type { FairListItem } from '@/src/domains/fairs/types';
 
+import { ArtworkBrowserSection } from './ArtworkBrowserSection';
 import { useStandEditor } from './StandEditorContext';
 
 const SIDEBAR_BG = '#3A2E22';
@@ -180,6 +181,10 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
               </View>
             )}
           </View>
+
+          <View style={styles.separator} />
+
+          {selectedFairId && <ArtworkBrowserSection fairId={selectedFairId} />}
 
           {snapSuggestion && (
             <>

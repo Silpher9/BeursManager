@@ -8,7 +8,7 @@ import { saveFair, setFairArtworkIncluded } from '@/src/domains/fairs/repository
 import { persistArtworkPhotoAssetsAsync } from '@/src/domains/inventory/artworkStorage';
 import { listArtworks, saveArtwork } from '@/src/domains/inventory/repository';
 import { type ArtworkStatus } from '@/src/domains/inventory/types';
-import { createSaleForFair } from '@/src/domains/sales/repository';
+import { createSaleForFairCore } from '@/src/domains/sales/repository';
 import { dateToLocalIso } from '@/src/shared/date';
 
 type DemoArtworkPreset = {
@@ -791,7 +791,7 @@ export async function seedDemoData(
       receiptPhotoPath: null,
     });
 
-    await createSaleForFair(database, pastFair.id, {
+    await createSaleForFairCore(database, pastFair.id, {
       artworkId: artworkIds.get('morgenlicht')!,
       askingPrice: '1450',
       discount: '50',
@@ -805,7 +805,7 @@ export async function seedDemoData(
     });
     contactCount += 1;
 
-    await createSaleForFair(database, pastFair.id, {
+    await createSaleForFairCore(database, pastFair.id, {
       artworkId: artworkIds.get('atelier_noord')!,
       askingPrice: '980',
       discount: '0',
@@ -829,7 +829,7 @@ export async function seedDemoData(
     });
     contactCount += 1;
 
-    await createSaleForFair(database, activeFair.id, {
+    await createSaleForFairCore(database, activeFair.id, {
       artworkId: artworkIds.get('kaslicht')!,
       askingPrice: '1650',
       discount: '150',
@@ -855,7 +855,7 @@ export async function seedDemoData(
 }
 
 export async function resetDemoData(db: SQLiteDatabase) {
-  const artworks = await listArtworks(db);
+  const { artworks } = await listArtworks(db);
 
   for (const artwork of artworks) {
     if (artwork.photoPath && !artwork.photoPath.startsWith('data:')) {
