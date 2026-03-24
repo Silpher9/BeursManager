@@ -83,6 +83,10 @@ De Stand tab draait BabylonJS in een WebView (`src/domains/stand/webview/scene.h
 
 **Waarom:** iPad WebView gaf `ReferenceError: Can't find variable: initScene` toen de functie in een later script blok stond dan de CDN tag die het aanriep.
 
+**Artwork-representatie:** Kunstwerken in de stand-editor zijn een 2cm diep volume (zwarte `CreateBox` + aparte front `CreatePlane` met texture). Zijkanten/achterkant = zwart, alleen voorkant toont de afbeelding. App/context (`placedArtworks[]`) is de canonieke eigenaar van geplaatste artwork state — WebView is alleen rendering/projectie.
+
+**Image transport:** Thumbnail afbeeldingen worden op native als base64 data URI door de bridge gestuurd (`data:image/jpeg;base64,...`) omdat de WebView sandbox geen toegang heeft tot de app's file:// document directory. Op web wordt de URI direct gebruikt.
+
 ## Externe services
 
 - `@fal-ai/client` — AI beeldgeneratie (key via `EXPO_PUBLIC_FAL_KEY`)
