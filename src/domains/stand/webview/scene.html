@@ -75,7 +75,7 @@
         setWallTransform(data.wallId, data.position, data.rotation);
       }
       if (data.type === 'placeArtwork' && data.artworkId) {
-        placeArtwork(data.artworkId, data.wallId, data.position, data.hitNormal || {x:0,y:0,z:1}, data.heightCm, data.widthCm, data.imageUri);
+        placeArtwork(data.artworkId, data.wallId, data.position, data.hitNormal || {x:0,y:0,z:1}, data.heightCm, data.widthCm, data.imageUri, !!data.isLocal);
       }
       if (data.type === 'removeArtwork' && data.artworkId) {
         removeArtwork(data.artworkId);
@@ -336,7 +336,7 @@
     var placedArtworks = {}; // artworkId -> { mesh, wallId }
     var selectedArtworkId = null;
 
-    function placeArtwork(artworkId, wallId, position, hitNormal, heightCm, widthCm, imageUri) {
+    function placeArtwork(artworkId, wallId, position, hitNormal, heightCm, widthCm, imageUri, isLocal) {
       if (placedArtworks[artworkId]) removeArtwork(artworkId);
 
       var h = cmToM(heightCm);
@@ -383,24 +383,31 @@
       var wallEntry = walls[wallId];
       if (wallEntry) {
         mesh.parent = wallEntry.mesh;
-        // Convert world hitPoint and hitNormal to local wall space
-        var worldPos = new BABYLON.Vector3(position.x, position.y, position.z);
-        var worldNorm = new BABYLON.Vector3(hitNormal.x, hitNormal.y, hitNormal.z);
-        var wallWorldMatrix = wallEntry.mesh.getWorldMatrix();
-        var invWorldMatrix = BABYLON.Matrix.Invert(wallWorldMatrix);
-        var localPos = BABYLON.Vector3.TransformCoordinates(worldPos, invWorldMatrix);
-        var localNorm = BABYLON.Vector3.TransformNormal(worldNorm, invWorldMatrix).normalize();
-        // Place on the side determined by normal direction
-        var wallDepth = cmToM(wallEntry.config.depth);
-        if (localNorm.z >= 0) {
-          // Front side (+Z normal)
-          localPos.z = wallDepth / 2 + depth / 2;
+
+        if (isLocal) {
+          // Position is already wall-local (replay/undo/redo)
+          mesh.position = new BABYLON.Vector3(position.x, position.y, position.z);
+          // Determine flip from Z sign
+          if (position.z < 0) {
+            box.rotation.y = Math.PI;
+          }
         } else {
-          // Back side (-Z normal) — flip artwork to face outward
-          localPos.z = -(wallDepth / 2 + depth / 2);
-          box.rotation.y = Math.PI;
+          // Convert world hitPoint and hitNormal to local wall space
+          var worldPos = new BABYLON.Vector3(position.x, position.y, position.z);
+          var worldNorm = new BABYLON.Vector3(hitNormal.x, hitNormal.y, hitNormal.z);
+          var wallWorldMatrix = wallEntry.mesh.getWorldMatrix();
+          var invWorldMatrix = BABYLON.Matrix.Invert(wallWorldMatrix);
+          var localPos = BABYLON.Vector3.TransformCoordinates(worldPos, invWorldMatrix);
+          var localNorm = BABYLON.Vector3.TransformNormal(worldNorm, invWorldMatrix).normalize();
+          var wallDepth = cmToM(wallEntry.config.depth);
+          if (localNorm.z >= 0) {
+            localPos.z = wallDepth / 2 + depth / 2;
+          } else {
+            localPos.z = -(wallDepth / 2 + depth / 2);
+            box.rotation.y = Math.PI;
+          }
+          mesh.position = localPos;
         }
-        mesh.position = localPos;
       }
 
       // Add drag behavior for repositioning on wall plane (local X/Y only)
@@ -429,6 +436,7 @@
           });
           artDragStartPos = null;
         }
+        checkArtworkOverlaps(wallId);
       });
       mesh.addBehavior(dragBehavior);
 
@@ -441,6 +449,8 @@
         wallId: wallId,
         localPosition: { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z },
       });
+
+      checkArtworkOverlaps(wallId);
     }
 
     function removeArtwork(artworkId) {
@@ -457,17 +467,93 @@
       }
       if (entry.mesh.material) entry.mesh.material.dispose();
       entry.mesh.dispose();
+      var removedWallId = entry.wallId;
       delete placedArtworks[artworkId];
       if (selectedArtworkId === artworkId) {
         selectedArtworkId = null;
         sendToApp({ type: 'artworkSelected', artworkId: null });
       }
+      checkArtworkOverlaps(removedWallId);
     }
 
     function setArtworkPosition(artworkId, localPosition) {
       var entry = placedArtworks[artworkId];
       if (!entry) return;
       entry.mesh.position = new BABYLON.Vector3(localPosition.x, localPosition.y, localPosition.z);
+      checkArtworkOverlaps(entry.wallId);
+    }
+
+    // --- Artwork overlap detection ---
+    function checkArtworkOverlaps(wallId) {
+      // Gather all artworks on this wall using local extents
+      var artIds = Object.keys(placedArtworks);
+      var wallArts = [];
+      for (var i = 0; i < artIds.length; i++) {
+        var entry = placedArtworks[artIds[i]];
+        if (entry.wallId !== wallId) continue;
+        var mesh = entry.mesh;
+        // Use local bounding box extents (not world) for correct overlap in rotated walls
+        var bb = mesh.getBoundingInfo().boundingBox;
+        var hw = bb.extendSize.x; // half width in local space
+        var hh = bb.extendSize.y; // half height in local space
+        wallArts.push({
+          id: artIds[i],
+          cx: mesh.position.x,
+          cy: mesh.position.y,
+          side: mesh.position.z >= 0 ? 'front' : 'back', // partition by wall side
+          hw: hw,
+          hh: hh,
+          entry: entry,
+        });
+      }
+
+      // Check pairwise AABB overlap in local X/Y (same side only)
+      var overlapping = {};
+      for (var a = 0; a < wallArts.length; a++) {
+        for (var b = a + 1; b < wallArts.length; b++) {
+          var aa = wallArts[a];
+          var bb = wallArts[b];
+          if (aa.side !== bb.side) continue; // different sides don't overlap
+          if (Math.abs(aa.cx - bb.cx) < (aa.hw + bb.hw) &&
+              Math.abs(aa.cy - bb.cy) < (aa.hh + bb.hh)) {
+            overlapping[aa.id] = true;
+            overlapping[bb.id] = true;
+          }
+        }
+      }
+
+      // Apply visual feedback
+      for (var j = 0; j < wallArts.length; j++) {
+        var art = wallArts[j];
+        var isOverlapping = !!overlapping[art.id];
+        // Set emissive on front plane (child mesh)
+        var children = art.entry.mesh.getChildMeshes();
+        for (var ci = 0; ci < children.length; ci++) {
+          if (children[ci].material) {
+            children[ci].material.emissiveColor = isOverlapping
+              ? new BABYLON.Color3(0.6, 0, 0)
+              : new BABYLON.Color3(0, 0, 0);
+          }
+        }
+        // Also tint the box itself
+        if (art.entry.mesh.material) {
+          art.entry.mesh.material.emissiveColor = isOverlapping
+            ? new BABYLON.Color3(0.4, 0, 0)
+            : new BABYLON.Color3(0, 0, 0);
+        }
+      }
+    }
+
+    function checkAllOverlaps() {
+      var checkedWalls = {};
+      var artIds = Object.keys(placedArtworks);
+      for (var i = 0; i < artIds.length; i++) {
+        var wId = placedArtworks[artIds[i]].wallId;
+        if (!checkedWalls[wId]) {
+          checkedWalls[wId] = true;
+          checkArtworkOverlaps(wId);
+        }
+      }
     }
 
     function selectArtwork(artworkId) {

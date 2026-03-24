@@ -72,7 +72,7 @@ export function StandScreen() {
     }
     // Replay placed artworks
     placedArtworks.forEach(a => {
-      sendMessage({ type: 'placeArtwork', artworkId: a.artworkId, wallId: a.wallId, position: a.position, hitNormal: a.hitNormal, heightCm: a.heightCm, widthCm: a.widthCm, imageUri: a.imageUri });
+      sendMessage({ type: 'placeArtwork', artworkId: a.artworkId, wallId: a.wallId, position: a.position, hitNormal: a.hitNormal, heightCm: a.heightCm, widthCm: a.widthCm, imageUri: a.imageUri, isLocal: true });
     });
   }, [walls, snapEnabled, snapDegrees, editorMode, placedArtworks, sendMessage, replayTransforms]);
 

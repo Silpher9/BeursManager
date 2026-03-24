@@ -212,7 +212,7 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
           setPlacedArtworks(a => a.filter(x => x.artworkId !== cmd.artwork.artworkId));
           break;
         case 'removeArtwork':
-          sendMessage({ type: 'placeArtwork', artworkId: cmd.artwork.artworkId, wallId: cmd.artwork.wallId, position: cmd.artwork.position, hitNormal: cmd.artwork.hitNormal, heightCm: cmd.artwork.heightCm, widthCm: cmd.artwork.widthCm, imageUri: cmd.artwork.imageUri });
+          sendMessage({ type: 'placeArtwork', artworkId: cmd.artwork.artworkId, wallId: cmd.artwork.wallId, position: cmd.artwork.position, hitNormal: cmd.artwork.hitNormal, heightCm: cmd.artwork.heightCm, widthCm: cmd.artwork.widthCm, imageUri: cmd.artwork.imageUri, isLocal: true });
           setPlacedArtworks(a => [...a, cmd.artwork]);
           break;
         case 'moveArtwork':
@@ -252,7 +252,7 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
           setWalls(w => w.map(x => x.id === cmd.wallId ? { ...x, width: cmd.newWidth, height: cmd.newHeight, depth: cmd.newDepth } : x));
           break;
         case 'placeArtwork':
-          sendMessage({ type: 'placeArtwork', artworkId: cmd.artwork.artworkId, wallId: cmd.artwork.wallId, position: cmd.artwork.position, hitNormal: cmd.artwork.hitNormal, heightCm: cmd.artwork.heightCm, widthCm: cmd.artwork.widthCm, imageUri: cmd.artwork.imageUri });
+          sendMessage({ type: 'placeArtwork', artworkId: cmd.artwork.artworkId, wallId: cmd.artwork.wallId, position: cmd.artwork.position, hitNormal: cmd.artwork.hitNormal, heightCm: cmd.artwork.heightCm, widthCm: cmd.artwork.widthCm, imageUri: cmd.artwork.imageUri, isLocal: true });
           setPlacedArtworks(a => [...a, cmd.artwork]);
           break;
         case 'removeArtwork':

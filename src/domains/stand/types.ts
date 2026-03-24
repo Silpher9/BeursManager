@@ -27,7 +27,7 @@ export type AppToWebViewMessage =
   | { type: 'dismissSnap' }
   | { type: 'setEditorMode'; mode: EditorMode }
   | { type: 'setWallTransform'; wallId: string; position: Vec3; rotation: Vec3 }
-  | { type: 'placeArtwork'; artworkId: string; wallId: string; position: Vec3; hitNormal: Vec3; heightCm: number; widthCm: number; imageUri: string }
+  | { type: 'placeArtwork'; artworkId: string; wallId: string; position: Vec3; hitNormal: Vec3; heightCm: number; widthCm: number; imageUri: string; isLocal?: boolean }
   | { type: 'removeArtwork'; artworkId: string }
   | { type: 'setArtworkPosition'; artworkId: string; localPosition: Vec3 };
 
