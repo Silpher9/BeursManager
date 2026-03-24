@@ -26,7 +26,9 @@ export type AppToWebViewMessage =
   | { type: 'confirmSnap'; wallId: string; position: Vec3; rotation: Vec3 }
   | { type: 'dismissSnap' }
   | { type: 'setEditorMode'; mode: EditorMode }
-  | { type: 'setWallTransform'; wallId: string; position: Vec3; rotation: Vec3 };
+  | { type: 'setWallTransform'; wallId: string; position: Vec3; rotation: Vec3 }
+  | { type: 'placeArtwork'; artworkId: string; wallId: string; position: Vec3; hitNormal: Vec3; heightCm: number; widthCm: number; imageUri: string }
+  | { type: 'removeArtwork'; artworkId: string };
 
 export type WebViewToAppMessage =
   | { type: 'pong' }
@@ -34,7 +36,21 @@ export type WebViewToAppMessage =
   | { type: 'error'; message: string }
   | { type: 'wallSelected'; wallId: string | null }
   | { type: 'snapSuggestion'; suggestion: SnapSuggestion | null }
-  | { type: 'wallMoved'; wallId: string; oldPosition: Vec3; newPosition: Vec3; oldRotation: Vec3; newRotation: Vec3 };
+  | { type: 'wallMoved'; wallId: string; oldPosition: Vec3; newPosition: Vec3; oldRotation: Vec3; newRotation: Vec3 }
+  | { type: 'wallTapped'; wallId: string; hitPoint: Vec3; hitNormal: Vec3 }
+  | { type: 'artworkSelected'; artworkId: string | null };
+
+// --- Placed Artwork ---
+
+export type PlacedArtwork = {
+  artworkId: string;
+  wallId: string;
+  position: Vec3;
+  hitNormal: Vec3;
+  heightCm: number;
+  widthCm: number;
+  imageUri: string;
+};
 
 // --- Command / History ---
 
@@ -43,4 +59,6 @@ export type EditorCommand =
   | { kind: 'removeWall'; wall: WallConfig; position: Vec3; rotation: Vec3 }
   | { kind: 'moveWall'; wallId: string; oldPosition: Vec3; newPosition: Vec3; oldRotation: Vec3; newRotation: Vec3 }
   | { kind: 'resizeWall'; wallId: string; oldWidth: number; oldHeight: number; oldDepth: number; newWidth: number; newHeight: number; newDepth: number }
-  | { kind: 'snapWall'; wallId: string; oldPosition: Vec3; newPosition: Vec3; oldRotation: Vec3; newRotation: Vec3 };
+  | { kind: 'snapWall'; wallId: string; oldPosition: Vec3; newPosition: Vec3; oldRotation: Vec3; newRotation: Vec3 }
+  | { kind: 'placeArtwork'; artwork: PlacedArtwork }
+  | { kind: 'removeArtwork'; artwork: PlacedArtwork };

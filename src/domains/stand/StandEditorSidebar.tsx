@@ -35,6 +35,8 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
     dismissSnapSuggestion,
     artworkPanelVisible,
     toggleArtworkPanel,
+    selectedArtworkId,
+    removeSelectedArtwork,
     selectedFairId,
     selectFair,
     saveCurrentConfig,
@@ -193,6 +195,12 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
               {artworkPanelVisible ? 'Kunstwerken verbergen' : 'Kunstwerken tonen'}
             </Text>
           </Pressable>
+
+          {selectedArtworkId && (
+            <Pressable style={styles.deleteButton} onPress={removeSelectedArtwork}>
+              <Text style={styles.deleteButtonText}>Verwijder kunstwerk</Text>
+            </Pressable>
+          )}
 
           {snapSuggestion && (
             <>

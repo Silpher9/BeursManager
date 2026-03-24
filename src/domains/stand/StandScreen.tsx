@@ -25,7 +25,7 @@ export function StandScreen() {
   const db = useSQLiteContext();
   const [fairs, setFairs] = useState<FairListItem[]>([]);
 
-  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedFairId, selectedWallId, artworkPanelVisible, addWall, removeSelectedWall, selectFair, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, replayTransforms, registerWebView, registerIframe } = useStandEditor();
+  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedFairId, selectedWallId, artworkPanelVisible, placedArtworks, addWall, removeSelectedWall, selectFair, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, setSelectedArtworkId, replayTransforms, registerWebView, registerIframe } = useStandEditor();
 
   // Fetch fairs for selection gate
   useEffect(() => {
@@ -70,7 +70,11 @@ export function StandScreen() {
     if (editorMode !== 'build') {
       sendMessage({ type: 'setEditorMode', mode: editorMode });
     }
-  }, [walls, snapEnabled, snapDegrees, editorMode, sendMessage, replayTransforms]);
+    // Replay placed artworks
+    placedArtworks.forEach(a => {
+      sendMessage({ type: 'placeArtwork', artworkId: a.artworkId, wallId: a.wallId, position: a.position, hitNormal: a.hitNormal, heightCm: a.heightCm, widthCm: a.widthCm, imageUri: a.imageUri });
+    });
+  }, [walls, snapEnabled, snapDegrees, editorMode, placedArtworks, sendMessage, replayTransforms]);
 
   const handleIncomingMessage = useCallback((data: WebViewToAppMessage) => {
     if (data.type === 'sceneReady') {
@@ -94,7 +98,13 @@ export function StandScreen() {
     if (data.type === 'wallMoved') {
       handleWallMoved(data.wallId, data.oldPosition, data.newPosition, data.oldRotation, data.newRotation);
     }
-  }, [sendMessage, setSceneReady, setSelectedWallId, setSnapSuggestion, handleWallMoved, replayState]);
+    if (data.type === 'wallTapped') {
+      handleWallTapped(data.wallId, data.hitPoint, data.hitNormal);
+    }
+    if (data.type === 'artworkSelected') {
+      setSelectedArtworkId(data.artworkId);
+    }
+  }, [sendMessage, setSceneReady, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, setSelectedArtworkId, replayState]);
 
   // Web: luister naar postMessage van iframe
   useEffect(() => {

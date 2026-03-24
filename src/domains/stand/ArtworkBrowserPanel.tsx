@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
+import { readAsStringAsync, EncodingType } from 'expo-file-system/legacy';
 
 import { type StandArtworkItem, listFairArtworksForStand } from './repository';
+import { useStandEditor } from './StandEditorContext';
 
 const PANEL_BG = '#3A2E22';
 const ACTIVE_TINT = '#FFFDF9';
@@ -50,6 +52,7 @@ function DropdownFilter({ label, value, options, onSelect }: {
 
 export function ArtworkBrowserPanel({ fairId, docked }: Props) {
   const db = useSQLiteContext();
+  const { placedArtworks, pendingArtworkId, setPendingArtwork } = useStandEditor();
   const [artworks, setArtworks] = useState<StandArtworkItem[]>([]);
   const [artistFilter, setArtistFilter] = useState<string | null>(null);
   const [seriesFilter, setSeriesFilter] = useState<string | null>(null);
@@ -103,8 +106,36 @@ export function ArtworkBrowserPanel({ fairId, docked }: Props) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.artworkGrid}
           style={styles.artworkScroll}
-          renderItem={({ item }) => (
-            <View style={styles.artworkCard}>
+          renderItem={({ item }) => {
+            const isPlaced = placedArtworks.some(a => a.artworkId === item.id);
+            const isPending = pendingArtworkId === item.id;
+            const canPlace = item.placeable && !isPlaced;
+
+            return (
+            <Pressable
+              style={[styles.artworkCard, isPlaced && styles.artworkCardPlaced, isPending && styles.artworkCardPending]}
+              onPress={async () => {
+                if (!canPlace) return;
+                if (isPending) {
+                  setPendingArtwork(null);
+                  return;
+                }
+                // Convert thumbnail to base64 data URI for WebView
+                let imageUri = '';
+                if (item.thumbnailPath && Platform.OS !== 'web') {
+                  try {
+                    const b64 = await readAsStringAsync(item.thumbnailPath, { encoding: EncodingType.Base64 });
+                    imageUri = `data:image/jpeg;base64,${b64}`;
+                  } catch {
+                    imageUri = item.thumbnailPath;
+                  }
+                } else {
+                  imageUri = item.thumbnailPath ?? '';
+                }
+                setPendingArtwork(item.id, { heightCm: item.heightCm!, widthCm: item.widthCm!, imageUri });
+              }}
+              disabled={!item.placeable}
+            >
               {item.thumbnailPath ? (
                 <Image source={{ uri: item.thumbnailPath }} style={styles.thumbnail} />
               ) : (
@@ -121,8 +152,10 @@ export function ArtworkBrowserPanel({ fairId, docked }: Props) {
               ) : (
                 <Text style={styles.artworkError}>Afmetingen ontbreken</Text>
               )}
-            </View>
-          )}
+              {isPending && <Text style={styles.pendingLabel}>Klik op wand</Text>}
+            </Pressable>
+          );
+          }}
         />
       )}
     </View>
@@ -232,6 +265,21 @@ const styles = StyleSheet.create({
   artworkCard: {
     width: 130,
     gap: 3,
+  },
+  artworkCardPlaced: {
+    opacity: 0.35,
+  },
+  artworkCardPending: {
+    borderWidth: 2,
+    borderColor: ACCENT,
+    borderRadius: 10,
+    padding: 2,
+  },
+  pendingLabel: {
+    color: ACCENT,
+    fontSize: 10,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   thumbnail: {
     width: 130,

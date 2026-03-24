@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import type { WebView } from 'react-native-webview';
 
-import type { AppToWebViewMessage, EditorCommand, EditorMode, SnapSuggestion, Vec3, WallConfig } from './types';
+import type { AppToWebViewMessage, EditorCommand, EditorMode, PlacedArtwork, SnapSuggestion, Vec3, WallConfig } from './types';
 import { type StandDocument, saveStandConfig, loadStandConfig } from './repository';
 
 type StandEditorState = {
@@ -23,6 +23,13 @@ type StandEditorState = {
   replayTransforms: () => void;
   artworkPanelVisible: boolean;
   toggleArtworkPanel: () => void;
+  placedArtworks: PlacedArtwork[];
+  pendingArtworkId: string | null;
+  selectedArtworkId: string | null;
+  setPendingArtwork: (artworkId: string | null, data?: { heightCm: number; widthCm: number; imageUri: string }) => void;
+  handleWallTapped: (wallId: string, hitPoint: Vec3, hitNormal: Vec3) => void;
+  removeSelectedArtwork: () => void;
+  setSelectedArtworkId: (id: string | null) => void;
   toggleEditorMode: () => void;
   setSnapSuggestion: (suggestion: SnapSuggestion | null) => void;
   confirmSnapSuggestion: () => void;
@@ -65,6 +72,10 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
   const [selectedFairId, setSelectedFairId] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [artworkPanelVisible, setArtworkPanelVisible] = useState(false);
+  const [placedArtworks, setPlacedArtworks] = useState<PlacedArtwork[]>([]);
+  const [pendingArtworkId, setPendingArtworkId] = useState<string | null>(null);
+  const pendingArtworkRef = useRef<{ heightCm: number; widthCm: number; imageUri: string } | null>(null);
+  const [selectedArtworkId, setSelectedArtworkId] = useState<string | null>(null);
   // Track last known transform per wall (updated by wallMoved)
   const wallTransforms = useRef<Record<string, { position: Vec3; rotation: Vec3 }>>({});
 
@@ -115,6 +126,8 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
         if (wall) {
           const transform = wallTransforms.current[current] ?? { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 } };
           sendMessage({ type: 'removeWall', wallId: current });
+          // Remove artworks on this wall
+          setPlacedArtworks(prev => prev.filter(a => a.wallId !== current));
           pushCommand({
             kind: 'removeWall',
             wall,
@@ -192,6 +205,14 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
           sendMessage({ type: 'updateWall', wallId: cmd.wallId, width: cmd.oldWidth, height: cmd.oldHeight, depth: cmd.oldDepth });
           setWalls(w => w.map(x => x.id === cmd.wallId ? { ...x, width: cmd.oldWidth, height: cmd.oldHeight, depth: cmd.oldDepth } : x));
           break;
+        case 'placeArtwork':
+          sendMessage({ type: 'removeArtwork', artworkId: cmd.artwork.artworkId });
+          setPlacedArtworks(a => a.filter(x => x.artworkId !== cmd.artwork.artworkId));
+          break;
+        case 'removeArtwork':
+          sendMessage({ type: 'placeArtwork', artworkId: cmd.artwork.artworkId, wallId: cmd.artwork.wallId, position: cmd.artwork.position, hitNormal: cmd.artwork.hitNormal, heightCm: cmd.artwork.heightCm, widthCm: cmd.artwork.widthCm, imageUri: cmd.artwork.imageUri });
+          setPlacedArtworks(a => [...a, cmd.artwork]);
+          break;
       }
 
       setRedoStack(r => [...r, cmd]);
@@ -223,6 +244,14 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
         case 'resizeWall':
           sendMessage({ type: 'updateWall', wallId: cmd.wallId, width: cmd.newWidth, height: cmd.newHeight, depth: cmd.newDepth });
           setWalls(w => w.map(x => x.id === cmd.wallId ? { ...x, width: cmd.newWidth, height: cmd.newHeight, depth: cmd.newDepth } : x));
+          break;
+        case 'placeArtwork':
+          sendMessage({ type: 'placeArtwork', artworkId: cmd.artwork.artworkId, wallId: cmd.artwork.wallId, position: cmd.artwork.position, hitNormal: cmd.artwork.hitNormal, heightCm: cmd.artwork.heightCm, widthCm: cmd.artwork.widthCm, imageUri: cmd.artwork.imageUri });
+          setPlacedArtworks(a => [...a, cmd.artwork]);
+          break;
+        case 'removeArtwork':
+          sendMessage({ type: 'removeArtwork', artworkId: cmd.artwork.artworkId });
+          setPlacedArtworks(a => a.filter(x => x.artworkId !== cmd.artwork.artworkId));
           break;
       }
 
@@ -289,6 +318,62 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     });
   }, [sendMessage]);
 
+  const setPendingArtwork = useCallback((artworkId: string | null, data?: { heightCm: number; widthCm: number; imageUri: string }) => {
+    setPendingArtworkId(artworkId);
+    pendingArtworkRef.current = data ?? null;
+  }, []);
+
+  const handleWallTapped = useCallback((wallId: string, hitPoint: Vec3, hitNormal: Vec3) => {
+    if (!pendingArtworkId) return;
+
+    const artworkData = pendingArtworkRef.current;
+    if (!artworkData) return;
+
+    // Check if already placed
+    if (placedArtworks.some(a => a.artworkId === pendingArtworkId)) return;
+
+    // Clear pending immediately to prevent double placement
+    pendingArtworkRef.current = null;
+
+    const placed: PlacedArtwork = {
+      artworkId: pendingArtworkId,
+      wallId,
+      position: hitPoint,
+      hitNormal: hitNormal,
+      heightCm: artworkData.heightCm,
+      widthCm: artworkData.widthCm,
+      imageUri: artworkData.imageUri,
+    };
+
+    sendMessage({
+      type: 'placeArtwork',
+      artworkId: placed.artworkId,
+      wallId: placed.wallId,
+      position: placed.position,
+      hitNormal: placed.hitNormal,
+      heightCm: placed.heightCm,
+      widthCm: placed.widthCm,
+      imageUri: placed.imageUri,
+    });
+
+    setPlacedArtworks(prev => [...prev, placed]);
+    pushCommand({ kind: 'placeArtwork', artwork: placed });
+    setPendingArtworkId(null);
+  }, [pendingArtworkId, placedArtworks, sendMessage, pushCommand]);
+
+  const removeSelectedArtwork = useCallback(() => {
+    if (!selectedArtworkId) return;
+    const artwork = placedArtworks.find(a => a.artworkId === selectedArtworkId);
+    if (!artwork) return;
+
+    sendMessage({ type: 'removeArtwork', artworkId: selectedArtworkId });
+    setPlacedArtworks(prev => prev.filter(a => a.artworkId !== selectedArtworkId));
+    if (artwork) {
+      pushCommand({ kind: 'removeArtwork', artwork });
+    }
+    setSelectedArtworkId(null);
+  }, [selectedArtworkId, placedArtworks, sendMessage, pushCommand]);
+
   const toggleArtworkPanel = useCallback(() => {
     setArtworkPanelVisible(prev => !prev);
   }, []);
@@ -308,6 +393,9 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     // Clear current state
     walls.forEach(w => sendMessage({ type: 'removeWall', wallId: w.id }));
     setWalls([]);
+    setPlacedArtworks([]);
+    setPendingArtworkId(null);
+    setSelectedArtworkId(null);
     setSelectedWallId(null);
     setSnapSuggestion(null);
     setHistory([]);
@@ -382,6 +470,13 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       replayTransforms,
       artworkPanelVisible: artworkPanelVisible && editorMode === 'build',
       toggleArtworkPanel,
+      placedArtworks,
+      pendingArtworkId,
+      selectedArtworkId,
+      setPendingArtwork,
+      handleWallTapped,
+      removeSelectedArtwork,
+      setSelectedArtworkId,
       addWall,
       removeSelectedWall,
       updateWallDimension,

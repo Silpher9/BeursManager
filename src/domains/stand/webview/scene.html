@@ -74,6 +74,12 @@
       if (data.type === 'setWallTransform' && data.wallId) {
         setWallTransform(data.wallId, data.position, data.rotation);
       }
+      if (data.type === 'placeArtwork' && data.artworkId) {
+        placeArtwork(data.artworkId, data.wallId, data.position, data.hitNormal || {x:0,y:0,z:1}, data.heightCm, data.widthCm, data.imageUri);
+      }
+      if (data.type === 'removeArtwork' && data.artworkId) {
+        removeArtwork(data.artworkId);
+      }
     }
 
     document.addEventListener('message', handleAppMessage);
@@ -120,6 +126,13 @@
     function removeWall(wallId) {
       var entry = walls[wallId];
       if (!entry) return;
+      // Remove child artworks on this wall
+      var artworkIds = Object.keys(placedArtworks);
+      for (var i = 0; i < artworkIds.length; i++) {
+        if (placedArtworks[artworkIds[i]].wallId === wallId) {
+          removeArtwork(artworkIds[i]);
+        }
+      }
       removeLabel(wallId);
       if (entry.mesh.material) entry.mesh.material.dispose();
       entry.mesh.dispose();
@@ -162,6 +175,14 @@
       entry.config.width = width;
       entry.config.height = height;
       entry.config.depth = depth;
+      // Re-parent child artworks to new mesh
+      var artworkIds = Object.keys(placedArtworks);
+      for (var ai = 0; ai < artworkIds.length; ai++) {
+        var artEntry = placedArtworks[artworkIds[ai]];
+        if (artEntry.wallId === wallId) {
+          artEntry.mesh.parent = mesh;
+        }
+      }
       createLabel(wallId);
 
       if (selectedWallId === wallId && gizmoManager) {
@@ -298,6 +319,106 @@
           }
         }
       }
+    }
+
+    // --- Artwork placement ---
+    var placedArtworks = {}; // artworkId -> { mesh, wallId }
+    var selectedArtworkId = null;
+
+    function placeArtwork(artworkId, wallId, position, hitNormal, heightCm, widthCm, imageUri) {
+      if (placedArtworks[artworkId]) removeArtwork(artworkId);
+
+      var h = cmToM(heightCm);
+      var w = cmToM(widthCm);
+      var depth = 0.02; // 2cm
+
+      // Black depth box (frame/sides)
+      var box = BABYLON.MeshBuilder.CreateBox('artBox_' + artworkId, {
+        width: w, height: h, depth: depth,
+      }, scene);
+      var boxMat = new BABYLON.StandardMaterial('artBoxMat_' + artworkId, scene);
+      boxMat.diffuseColor = new BABYLON.Color3(0, 0, 0);
+      boxMat.specularColor = new BABYLON.Color3(0, 0, 0);
+      box.material = boxMat;
+
+      // Front plane with artwork texture
+      var frontPlane = BABYLON.MeshBuilder.CreatePlane('artFront_' + artworkId, {
+        width: w, height: h,
+        sideOrientation: BABYLON.Mesh.DOUBLESIDE,
+      }, scene);
+      frontPlane.position.z = depth / 2 + 0.001; // Slightly in front of box
+      frontPlane.parent = box;
+      frontPlane.isPickable = false; // Picks land on parent box for metadata
+
+      var frontMat = new BABYLON.StandardMaterial('artFrontMat_' + artworkId, scene);
+      frontMat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+      if (imageUri && typeof imageUri === 'string' && imageUri.length > 0) {
+        try {
+          var tex = new BABYLON.Texture(imageUri, scene);
+          frontMat.diffuseTexture = tex;
+        } catch (e) {
+          // Texture load failed — use plain white
+        }
+      }
+      frontMat.diffuseColor = new BABYLON.Color3(1, 1, 1);
+      frontPlane.material = frontMat;
+
+      // Use box as the root mesh
+      var mesh = box;
+      mesh.position = new BABYLON.Vector3(position.x, position.y, position.z);
+      mesh.metadata = { artworkId: artworkId, wallId: wallId };
+
+      // Parent to wall for relative positioning
+      var wallEntry = walls[wallId];
+      if (wallEntry) {
+        mesh.parent = wallEntry.mesh;
+        // Convert world hitPoint and hitNormal to local wall space
+        var worldPos = new BABYLON.Vector3(position.x, position.y, position.z);
+        var worldNorm = new BABYLON.Vector3(hitNormal.x, hitNormal.y, hitNormal.z);
+        var wallWorldMatrix = wallEntry.mesh.getWorldMatrix();
+        var invWorldMatrix = BABYLON.Matrix.Invert(wallWorldMatrix);
+        var localPos = BABYLON.Vector3.TransformCoordinates(worldPos, invWorldMatrix);
+        var localNorm = BABYLON.Vector3.TransformNormal(worldNorm, invWorldMatrix).normalize();
+        // Place on the side determined by normal direction
+        var wallDepth = cmToM(wallEntry.config.depth);
+        if (localNorm.z >= 0) {
+          // Front side (+Z normal)
+          localPos.z = wallDepth / 2 + depth / 2;
+        } else {
+          // Back side (-Z normal) — flip artwork to face outward
+          localPos.z = -(wallDepth / 2 + depth / 2);
+          box.rotation.y = Math.PI;
+        }
+        mesh.position = localPos;
+      }
+
+      placedArtworks[artworkId] = { mesh: mesh, wallId: wallId };
+    }
+
+    function removeArtwork(artworkId) {
+      var entry = placedArtworks[artworkId];
+      if (!entry) return;
+      // Dispose child meshes (front plane) first
+      var children = entry.mesh.getChildMeshes();
+      for (var ci = 0; ci < children.length; ci++) {
+        if (children[ci].material) {
+          if (children[ci].material.diffuseTexture) children[ci].material.diffuseTexture.dispose();
+          children[ci].material.dispose();
+        }
+        children[ci].dispose();
+      }
+      if (entry.mesh.material) entry.mesh.material.dispose();
+      entry.mesh.dispose();
+      delete placedArtworks[artworkId];
+      if (selectedArtworkId === artworkId) {
+        selectedArtworkId = null;
+        sendToApp({ type: 'artworkSelected', artworkId: null });
+      }
+    }
+
+    function selectArtwork(artworkId) {
+      selectedArtworkId = artworkId;
+      sendToApp({ type: 'artworkSelected', artworkId: artworkId });
     }
 
     // --- Wall snapping ---
@@ -597,19 +718,40 @@
           gizmoManager.utilityLayer.utilityLayerScene.pointerMovePredicate = function () { return true; };
         }
 
-        // Klik op wand = selecteer, klik op grond/lucht = deselecteer
+        // Klik op wand/artwork = selecteer, klik op grond/lucht = deselecteer
         scene.onPointerObservable.add(function (pointerInfo) {
           if (pointerInfo.type !== BABYLON.PointerEventTypes.POINTERTAP) return;
-          if (editorMode === 'view') return; // Geen interactie in view mode
+          if (editorMode === 'view') return;
           var pickResult = pointerInfo.pickInfo;
           if (pickResult && pickResult.hit && pickResult.pickedMesh) {
             var meta = pickResult.pickedMesh.metadata;
+            // Artwork click
+            if (meta && meta.artworkId) {
+              selectArtwork(meta.artworkId);
+              return;
+            }
+            // Wall click — check for placement or selection
             if (meta && meta.wallId) {
+              // Send wallTapped for potential artwork placement
+              var hp = pickResult.pickedPoint;
+              var hn = pickResult.getNormal ? pickResult.getNormal(true) : null; // world normal
+              if (hp) {
+                sendToApp({
+                  type: 'wallTapped',
+                  wallId: meta.wallId,
+                  hitPoint: { x: hp.x, y: hp.y, z: hp.z },
+                  hitNormal: hn ? { x: hn.x, y: hn.y, z: hn.z } : { x: 0, y: 0, z: 1 },
+                });
+              }
               selectWall(meta.wallId);
               return;
             }
           }
           deselectWall();
+          if (selectedArtworkId) {
+            selectedArtworkId = null;
+            sendToApp({ type: 'artworkSelected', artworkId: null });
+          }
         });
 
         // Render loop
