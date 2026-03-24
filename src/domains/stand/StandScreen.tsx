@@ -25,7 +25,7 @@ export function StandScreen() {
   const db = useSQLiteContext();
   const [fairs, setFairs] = useState<FairListItem[]>([]);
 
-  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedFairId, selectedWallId, artworkPanelVisible, placedArtworks, addWall, removeSelectedWall, selectFair, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, setSelectedArtworkId, replayTransforms, registerWebView, registerIframe } = useStandEditor();
+  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedFairId, selectedWallId, artworkPanelVisible, placedArtworks, addWall, removeSelectedWall, selectFair, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, handleArtworkPlaced, handleArtworkMoved, setSelectedArtworkId, replayTransforms, registerWebView, registerIframe } = useStandEditor();
 
   // Fetch fairs for selection gate
   useEffect(() => {
@@ -101,10 +101,16 @@ export function StandScreen() {
     if (data.type === 'wallTapped') {
       handleWallTapped(data.wallId, data.hitPoint, data.hitNormal);
     }
+    if (data.type === 'artworkPlaced') {
+      handleArtworkPlaced(data.artworkId, data.wallId, data.localPosition);
+    }
     if (data.type === 'artworkSelected') {
       setSelectedArtworkId(data.artworkId);
     }
-  }, [sendMessage, setSceneReady, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, setSelectedArtworkId, replayState]);
+    if (data.type === 'artworkMoved') {
+      handleArtworkMoved(data.artworkId, data.oldLocalPosition, data.newLocalPosition);
+    }
+  }, [sendMessage, setSceneReady, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, handleArtworkPlaced, handleArtworkMoved, setSelectedArtworkId, replayState]);
 
   // Web: luister naar postMessage van iframe
   useEffect(() => {

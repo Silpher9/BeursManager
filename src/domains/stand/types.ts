@@ -28,7 +28,8 @@ export type AppToWebViewMessage =
   | { type: 'setEditorMode'; mode: EditorMode }
   | { type: 'setWallTransform'; wallId: string; position: Vec3; rotation: Vec3 }
   | { type: 'placeArtwork'; artworkId: string; wallId: string; position: Vec3; hitNormal: Vec3; heightCm: number; widthCm: number; imageUri: string }
-  | { type: 'removeArtwork'; artworkId: string };
+  | { type: 'removeArtwork'; artworkId: string }
+  | { type: 'setArtworkPosition'; artworkId: string; localPosition: Vec3 };
 
 export type WebViewToAppMessage =
   | { type: 'pong' }
@@ -38,7 +39,9 @@ export type WebViewToAppMessage =
   | { type: 'snapSuggestion'; suggestion: SnapSuggestion | null }
   | { type: 'wallMoved'; wallId: string; oldPosition: Vec3; newPosition: Vec3; oldRotation: Vec3; newRotation: Vec3 }
   | { type: 'wallTapped'; wallId: string; hitPoint: Vec3; hitNormal: Vec3 }
-  | { type: 'artworkSelected'; artworkId: string | null };
+  | { type: 'artworkSelected'; artworkId: string | null }
+  | { type: 'artworkPlaced'; artworkId: string; wallId: string; localPosition: Vec3 }
+  | { type: 'artworkMoved'; artworkId: string; oldLocalPosition: Vec3; newLocalPosition: Vec3 };
 
 // --- Placed Artwork ---
 
@@ -61,4 +64,5 @@ export type EditorCommand =
   | { kind: 'resizeWall'; wallId: string; oldWidth: number; oldHeight: number; oldDepth: number; newWidth: number; newHeight: number; newDepth: number }
   | { kind: 'snapWall'; wallId: string; oldPosition: Vec3; newPosition: Vec3; oldRotation: Vec3; newRotation: Vec3 }
   | { kind: 'placeArtwork'; artwork: PlacedArtwork }
-  | { kind: 'removeArtwork'; artwork: PlacedArtwork };
+  | { kind: 'removeArtwork'; artwork: PlacedArtwork }
+  | { kind: 'moveArtwork'; artworkId: string; oldPosition: Vec3; newPosition: Vec3 };

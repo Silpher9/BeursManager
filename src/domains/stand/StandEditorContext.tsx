@@ -28,8 +28,10 @@ type StandEditorState = {
   selectedArtworkId: string | null;
   setPendingArtwork: (artworkId: string | null, data?: { heightCm: number; widthCm: number; imageUri: string }) => void;
   handleWallTapped: (wallId: string, hitPoint: Vec3, hitNormal: Vec3) => void;
+  handleArtworkPlaced: (artworkId: string, wallId: string, localPosition: Vec3) => void;
   removeSelectedArtwork: () => void;
   setSelectedArtworkId: (id: string | null) => void;
+  handleArtworkMoved: (artworkId: string, oldPos: Vec3, newPos: Vec3) => void;
   toggleEditorMode: () => void;
   setSnapSuggestion: (suggestion: SnapSuggestion | null) => void;
   confirmSnapSuggestion: () => void;
@@ -213,6 +215,10 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
           sendMessage({ type: 'placeArtwork', artworkId: cmd.artwork.artworkId, wallId: cmd.artwork.wallId, position: cmd.artwork.position, hitNormal: cmd.artwork.hitNormal, heightCm: cmd.artwork.heightCm, widthCm: cmd.artwork.widthCm, imageUri: cmd.artwork.imageUri });
           setPlacedArtworks(a => [...a, cmd.artwork]);
           break;
+        case 'moveArtwork':
+          sendMessage({ type: 'setArtworkPosition', artworkId: cmd.artworkId, localPosition: cmd.oldPosition });
+          setPlacedArtworks(a => a.map(x => x.artworkId === cmd.artworkId ? { ...x, position: cmd.oldPosition } : x));
+          break;
       }
 
       setRedoStack(r => [...r, cmd]);
@@ -252,6 +258,10 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
         case 'removeArtwork':
           sendMessage({ type: 'removeArtwork', artworkId: cmd.artwork.artworkId });
           setPlacedArtworks(a => a.filter(x => x.artworkId !== cmd.artwork.artworkId));
+          break;
+        case 'moveArtwork':
+          sendMessage({ type: 'setArtworkPosition', artworkId: cmd.artworkId, localPosition: cmd.newPosition });
+          setPlacedArtworks(a => a.map(x => x.artworkId === cmd.artworkId ? { ...x, position: cmd.newPosition } : x));
           break;
       }
 
@@ -323,23 +333,25 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     pendingArtworkRef.current = data ?? null;
   }, []);
 
+  // Stores artwork data for in-flight placement (between wallTapped → artworkPlaced)
+  const inflightPlacementRef = useRef<{ artworkId: string; wallId: string; hitNormal: Vec3; heightCm: number; widthCm: number; imageUri: string } | null>(null);
+
   const handleWallTapped = useCallback((wallId: string, hitPoint: Vec3, hitNormal: Vec3) => {
     if (!pendingArtworkId) return;
 
     const artworkData = pendingArtworkRef.current;
     if (!artworkData) return;
 
-    // Check if already placed
     if (placedArtworks.some(a => a.artworkId === pendingArtworkId)) return;
 
     // Clear pending immediately to prevent double placement
     pendingArtworkRef.current = null;
 
-    const placed: PlacedArtwork = {
+    // Store in-flight data — state commit happens when scene confirms with local position
+    inflightPlacementRef.current = {
       artworkId: pendingArtworkId,
       wallId,
-      position: hitPoint,
-      hitNormal: hitNormal,
+      hitNormal,
       heightCm: artworkData.heightCm,
       widthCm: artworkData.widthCm,
       imageUri: artworkData.imageUri,
@@ -347,19 +359,37 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
 
     sendMessage({
       type: 'placeArtwork',
-      artworkId: placed.artworkId,
-      wallId: placed.wallId,
-      position: placed.position,
-      hitNormal: placed.hitNormal,
-      heightCm: placed.heightCm,
-      widthCm: placed.widthCm,
-      imageUri: placed.imageUri,
+      artworkId: pendingArtworkId,
+      wallId,
+      position: hitPoint,
+      hitNormal,
+      heightCm: artworkData.heightCm,
+      widthCm: artworkData.widthCm,
+      imageUri: artworkData.imageUri,
     });
+
+    setPendingArtworkId(null);
+  }, [pendingArtworkId, placedArtworks, sendMessage]);
+
+  // Called when scene confirms placement with canonical local position
+  const handleArtworkPlaced = useCallback((artworkId: string, wallId: string, localPosition: Vec3) => {
+    const inflight = inflightPlacementRef.current;
+    if (!inflight || inflight.artworkId !== artworkId) return;
+    inflightPlacementRef.current = null;
+
+    const placed: PlacedArtwork = {
+      artworkId,
+      wallId,
+      position: localPosition, // canonical wall-local
+      hitNormal: inflight.hitNormal,
+      heightCm: inflight.heightCm,
+      widthCm: inflight.widthCm,
+      imageUri: inflight.imageUri,
+    };
 
     setPlacedArtworks(prev => [...prev, placed]);
     pushCommand({ kind: 'placeArtwork', artwork: placed });
-    setPendingArtworkId(null);
-  }, [pendingArtworkId, placedArtworks, sendMessage, pushCommand]);
+  }, [pushCommand]);
 
   const removeSelectedArtwork = useCallback(() => {
     if (!selectedArtworkId) return;
@@ -373,6 +403,11 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     }
     setSelectedArtworkId(null);
   }, [selectedArtworkId, placedArtworks, sendMessage, pushCommand]);
+
+  const handleArtworkMoved = useCallback((artworkId: string, oldPos: Vec3, newPos: Vec3) => {
+    setPlacedArtworks(prev => prev.map(a => a.artworkId === artworkId ? { ...a, position: newPos } : a));
+    pushCommand({ kind: 'moveArtwork', artworkId, oldPosition: oldPos, newPosition: newPos });
+  }, [pushCommand]);
 
   const toggleArtworkPanel = useCallback(() => {
     setArtworkPanelVisible(prev => !prev);
@@ -475,8 +510,10 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       selectedArtworkId,
       setPendingArtwork,
       handleWallTapped,
+      handleArtworkPlaced,
       removeSelectedArtwork,
       setSelectedArtworkId,
+      handleArtworkMoved,
       addWall,
       removeSelectedWall,
       updateWallDimension,

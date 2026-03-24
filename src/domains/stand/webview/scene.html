@@ -80,6 +80,9 @@
       if (data.type === 'removeArtwork' && data.artworkId) {
         removeArtwork(data.artworkId);
       }
+      if (data.type === 'setArtworkPosition' && data.artworkId) {
+        setArtworkPosition(data.artworkId, data.localPosition);
+      }
     }
 
     document.addEventListener('message', handleAppMessage);
@@ -286,6 +289,14 @@
 
     function setEditorMode(mode) {
       editorMode = mode;
+      // Enable/disable artwork drag behaviors
+      var artIds = Object.keys(placedArtworks);
+      for (var ai = 0; ai < artIds.length; ai++) {
+        var artEntry = placedArtworks[artIds[ai]];
+        if (artEntry.dragBehavior) {
+          artEntry.dragBehavior.enabled = (mode === 'build');
+        }
+      }
       var wallIds = Object.keys(walls);
       for (var i = 0; i < wallIds.length; i++) {
         var entry = walls[wallIds[i]];
@@ -392,7 +403,44 @@
         mesh.position = localPos;
       }
 
-      placedArtworks[artworkId] = { mesh: mesh, wallId: wallId };
+      // Add drag behavior for repositioning on wall plane (local X/Y only)
+      var dragBehavior = new BABYLON.PointerDragBehavior({
+        dragPlaneNormal: new BABYLON.Vector3(0, 0, 1), // Local Z = wall normal
+      });
+      dragBehavior.useObjectOrientationForDragging = true;
+      dragBehavior.moveAttached = true;
+      dragBehavior.enabled = (editorMode === 'build');
+      var artDragStartPos = null;
+      dragBehavior.onDragStartObservable.add(function () {
+        artDragStartPos = { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z };
+        selectArtwork(artworkId);
+      });
+      dragBehavior.onDragEndObservable.add(function () {
+        if (artDragStartPos) {
+          var newPos = { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z };
+          // Keep Z fixed (stay on wall surface)
+          mesh.position.z = artDragStartPos.z;
+          newPos.z = artDragStartPos.z;
+          sendToApp({
+            type: 'artworkMoved',
+            artworkId: artworkId,
+            oldLocalPosition: artDragStartPos,
+            newLocalPosition: newPos,
+          });
+          artDragStartPos = null;
+        }
+      });
+      mesh.addBehavior(dragBehavior);
+
+      placedArtworks[artworkId] = { mesh: mesh, wallId: wallId, dragBehavior: dragBehavior };
+
+      // Report final local position back to app for canonical state
+      sendToApp({
+        type: 'artworkPlaced',
+        artworkId: artworkId,
+        wallId: wallId,
+        localPosition: { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z },
+      });
     }
 
     function removeArtwork(artworkId) {
@@ -414,6 +462,12 @@
         selectedArtworkId = null;
         sendToApp({ type: 'artworkSelected', artworkId: null });
       }
+    }
+
+    function setArtworkPosition(artworkId, localPosition) {
+      var entry = placedArtworks[artworkId];
+      if (!entry) return;
+      entry.mesh.position = new BABYLON.Vector3(localPosition.x, localPosition.y, localPosition.z);
     }
 
     function selectArtwork(artworkId) {
