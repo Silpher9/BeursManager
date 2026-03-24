@@ -11,6 +11,7 @@ import type { WebViewToAppMessage } from '@/src/domains/stand/types';
 import { useResponsive } from '@/src/shared/hooks/useResponsive';
 import { palette } from '@/src/shared/theme/colors';
 
+import { ArtworkBrowserPanel } from './ArtworkBrowserPanel';
 import { useStandEditor } from './StandEditorContext';
 
 import sceneHtml from '@/src/domains/stand/webview/scene.html';
@@ -24,7 +25,7 @@ export function StandScreen() {
   const db = useSQLiteContext();
   const [fairs, setFairs] = useState<FairListItem[]>([]);
 
-  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedFairId, selectedWallId, addWall, removeSelectedWall, selectFair, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, replayTransforms, registerWebView, registerIframe } = useStandEditor();
+  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedFairId, selectedWallId, artworkPanelVisible, addWall, removeSelectedWall, selectFair, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, replayTransforms, registerWebView, registerIframe } = useStandEditor();
 
   // Fetch fairs for selection gate
   useEffect(() => {
@@ -181,6 +182,12 @@ export function StandScreen() {
     </View>
   ) : null;
 
+  const artworkPanel = artworkPanelVisible && selectedFairId ? (
+    <View style={[styles.artworkPanelContainer, { bottom: Math.max(16, insets.bottom + 8), left: isTablet ? Math.max(16, insets.left + 8) : 16, right: Math.max(16, insets.right + 8) }]}>
+      <ArtworkBrowserPanel fairId={selectedFairId} docked={isTablet} />
+    </View>
+  ) : null;
+
   if (Platform.OS === 'web') {
     return (
       <View style={styles.container}>
@@ -196,6 +203,7 @@ export function StandScreen() {
           </View>
         )}
         {phoneToolbar}
+        {artworkPanel}
       </View>
     );
   }
@@ -225,6 +233,7 @@ export function StandScreen() {
         </View>
       )}
       {phoneToolbar}
+      {artworkPanel}
     </View>
   );
 }
@@ -301,6 +310,9 @@ const styles = StyleSheet.create({
     color: palette.mutedText,
     textAlign: 'center',
     paddingVertical: 32,
+  },
+  artworkPanelContainer: {
+    position: 'absolute',
   },
   phoneToolbar: {
     position: 'absolute',

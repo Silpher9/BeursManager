@@ -39,6 +39,7 @@ export type StandArtworkItem = {
   id: string;
   title: string;
   artistName: string | null;
+  series: string | null;
   thumbnailPath: string | null;
   heightCm: number | null;
   widthCm: number | null;
@@ -53,12 +54,13 @@ export async function listFairArtworksForStand(
     id: string;
     title: string;
     artist_name: string | null;
+    series: string | null;
     thumbnail_path: string | null;
     height_cm: number | null;
     width_cm: number | null;
   }>(
     `SELECT artworks.id, artworks.title, artists.name AS artist_name,
-            artworks.thumbnail_path, artworks.height_cm, artworks.width_cm
+            artworks.series, artworks.thumbnail_path, artworks.height_cm, artworks.width_cm
      FROM fair_artworks
      INNER JOIN artworks ON artworks.id = fair_artworks.artwork_id
      LEFT JOIN artists ON artists.id = artworks.artist_id
@@ -71,6 +73,7 @@ export async function listFairArtworksForStand(
     id: row.id,
     title: row.title,
     artistName: row.artist_name,
+    series: row.series,
     thumbnailPath: row.thumbnail_path,
     heightCm: row.height_cm,
     widthCm: row.width_cm,

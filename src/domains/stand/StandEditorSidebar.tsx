@@ -5,7 +5,6 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { listFairs } from '@/src/domains/fairs/repository';
 import type { FairListItem } from '@/src/domains/fairs/types';
 
-import { ArtworkBrowserSection } from './ArtworkBrowserSection';
 import { useStandEditor } from './StandEditorContext';
 
 const SIDEBAR_BG = '#3A2E22';
@@ -34,6 +33,8 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
     updateSnapDegrees,
     confirmSnapSuggestion,
     dismissSnapSuggestion,
+    artworkPanelVisible,
+    toggleArtworkPanel,
     selectedFairId,
     selectFair,
     saveCurrentConfig,
@@ -184,7 +185,14 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
 
           <View style={styles.separator} />
 
-          {selectedFairId && <ArtworkBrowserSection fairId={selectedFairId} />}
+          <Pressable
+            style={[styles.artworkToggle, artworkPanelVisible && styles.artworkToggleActive]}
+            onPress={toggleArtworkPanel}
+          >
+            <Text style={styles.artworkToggleText}>
+              {artworkPanelVisible ? 'Kunstwerken verbergen' : 'Kunstwerken tonen'}
+            </Text>
+          </Pressable>
 
           {snapSuggestion && (
             <>
@@ -406,6 +414,21 @@ const styles = StyleSheet.create({
   },
   undoRedoTextDisabled: {
     color: INACTIVE_TINT,
+  },
+  artworkToggle: {
+    backgroundColor: 'rgba(255, 253, 249, 0.08)',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  artworkToggleActive: {
+    backgroundColor: ACCENT,
+  },
+  artworkToggleText: {
+    color: INACTIVE_TINT,
+    fontSize: 13,
+    fontWeight: '600',
   },
   modeToggle: {
     backgroundColor: 'rgba(255, 253, 249, 0.08)',

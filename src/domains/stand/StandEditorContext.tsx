@@ -21,6 +21,8 @@ type StandEditorState = {
   saveCurrentConfig: () => Promise<void>;
   hasUnsavedChanges: boolean;
   replayTransforms: () => void;
+  artworkPanelVisible: boolean;
+  toggleArtworkPanel: () => void;
   toggleEditorMode: () => void;
   setSnapSuggestion: (suggestion: SnapSuggestion | null) => void;
   confirmSnapSuggestion: () => void;
@@ -62,6 +64,7 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
   const [redoStack, setRedoStack] = useState<EditorCommand[]>([]);
   const [selectedFairId, setSelectedFairId] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [artworkPanelVisible, setArtworkPanelVisible] = useState(false);
   // Track last known transform per wall (updated by wallMoved)
   const wallTransforms = useRef<Record<string, { position: Vec3; rotation: Vec3 }>>({});
 
@@ -286,6 +289,10 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     });
   }, [sendMessage]);
 
+  const toggleArtworkPanel = useCallback(() => {
+    setArtworkPanelVisible(prev => !prev);
+  }, []);
+
   const replayTransforms = useCallback(() => {
     const transforms = wallTransforms.current;
     for (const wallId of Object.keys(transforms)) {
@@ -373,6 +380,8 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       saveCurrentConfig,
       hasUnsavedChanges,
       replayTransforms,
+      artworkPanelVisible: artworkPanelVisible && editorMode === 'build',
+      toggleArtworkPanel,
       addWall,
       removeSelectedWall,
       updateWallDimension,
