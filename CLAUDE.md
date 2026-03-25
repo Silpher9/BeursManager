@@ -87,6 +87,10 @@ De Stand tab draait BabylonJS in een WebView (`src/domains/stand/webview/scene.h
 
 **Image transport:** Thumbnail afbeeldingen worden op native als base64 data URI door de bridge gestuurd (`data:image/jpeg;base64,...`) omdat de WebView sandbox geen toegang heeft tot de app's file:// document directory. Op web wordt de URI direct gebruikt.
 
+**Lamp-model:** Lampen in de stand-editor zijn geen vrije scene-objecten maar starten **artwork-anchored**: plaatsing via kunstwerk-klik, vaste hoogte/afstand, target op kunstwerk-midden. Vrijheidsgraden zijn beperkt: lamp schuift over een rail parallel aan de wand (1D), target versleepbaar over het wandvlak (2D). Één lamp per kunstwerk.
+
+**Waarom:** Vrije 3D-lampplaatsing leidt tot UX-frustratie door gebrek aan diepte-perceptie op een 2D-scherm. Het artwork-first model geeft direct een goed verlichtingsresultaat met minimale gebruikersinput.
+
 ## Externe services
 
 - `@fal-ai/client` — AI beeldgeneratie (key via `EXPO_PUBLIC_FAL_KEY`)
