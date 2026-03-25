@@ -101,20 +101,35 @@ Kunstenaars kunnen hun beursstand in 3D inrichten: wanden plaatsen, kunstwerken 
 
 ---
 
-## Fase 3: Lampen plaatsen
+## Fase 3: Lampen (artwork-first model)
 
-**Doel**: lampen toevoegen die de scene realistisch verlichten.
+Lampen zijn geen vrije scene-objecten maar starten artwork-anchored met beperkte vrijheidsgraden.
 
-**Scope:**
-- 2 lamp-types (bijv. spot en rail) als .glb modellen
-- SpotLight gekoppeld aan lamp-mesh
-- Lampen verplaatsbaar/richtbaar via GizmoManager
-- Realistische schaduwen (ShadowGenerator)
+### Fase 3a1: Artwork-first auto-placement ✦ HUIDIGE FASE
+
+**Doel**: lamp automatisch plaatsen bij een kunstwerk.
+
+**Flow:** Sidebar lamp-knop → klik op kunstwerk → lamp verschijnt automatisch boven het werk.
 
 **DoD:**
-- [ ] 2 lamp-types plaatsbaar
-- [ ] Lampen verplaatsbaar en richtbaar
-- [ ] Schaduwen zichtbaar op wanden en vloer
+- [x] Lamp plaatsing via artwork-klik (vaste hoogte + afstand)
+- [x] SpotLight met auto-target op midden kunstwerk
+- [x] Rail-drag langs wand (1D X-as)
+- [x] Selectie + verwijderen
+- [x] Undo/redo + persistentie
+- [ ] iPad device-test
+
+### Fase 3a2: Schaduwen + lichtkwaliteit
+
+**DoD:**
+- [ ] ShadowGenerator op spots
+- [ ] Schaduwen op wanden en vloer
+
+### Fase 3a3: Target finetuning
+
+**DoD:**
+- [ ] Target marker versleepbaar over wandvlak (2D)
+- [ ] Lamp richting volgt target automatisch
 
 ---
 
@@ -219,6 +234,22 @@ Kunstenaars kunnen hun beursstand in 3D inrichten: wanden plaatsen, kunstwerken 
 - [x] Stand-indeling laden en scene herstellen
 - [x] Model-first persistentie (geen WebView uitvragen)
 - [x] Idempotente migratie
+
+---
+
+## Fase 3b: HDRI / Environment Lighting
+
+**Doel**: realistische omgevingsbelichting via HDRI environment texture.
+
+**Scope:**
+- HDRCubeTexture laden als environment texture
+- Image-based lighting (IBL) voor PBR-achtige reflecties
+- Optioneel: skybox
+
+**Aandachtspunten:**
+- iPad performance met HDRI
+- Artwork-kleurgetrouwheid als acceptatiecriterium
+- Kleine, curated environment set
 
 ---
 
