@@ -138,6 +138,12 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
         const wall = prev.find(w => w.id === current);
         if (wall) {
           const transform = wallTransforms.current[current] ?? { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 } };
+          // Cascade: remove lamps on this wall
+          placedLamps.filter(l => l.wallId === current).forEach(l => {
+            sendMessage({ type: 'removeLamp', lampId: l.id });
+          });
+          setPlacedLamps(prev => prev.filter(l => l.wallId !== current));
+
           sendMessage({ type: 'removeWall', wallId: current });
           // Remove artworks on this wall
           setPlacedArtworks(prev => prev.filter(a => a.wallId !== current));
@@ -431,13 +437,17 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     const artwork = placedArtworks.find(a => a.artworkId === selectedArtworkId);
     if (!artwork) return;
 
+    // Cascade: remove lamps anchored to this artwork
+    placedLamps.filter(l => l.artworkId === selectedArtworkId).forEach(l => {
+      sendMessage({ type: 'removeLamp', lampId: l.id });
+    });
+    setPlacedLamps(prev => prev.filter(l => l.artworkId !== selectedArtworkId));
+
     sendMessage({ type: 'removeArtwork', artworkId: selectedArtworkId });
     setPlacedArtworks(prev => prev.filter(a => a.artworkId !== selectedArtworkId));
-    if (artwork) {
-      pushCommand({ kind: 'removeArtwork', artwork });
-    }
+    pushCommand({ kind: 'removeArtwork', artwork });
     setSelectedArtworkId(null);
-  }, [selectedArtworkId, placedArtworks, sendMessage, pushCommand]);
+  }, [selectedArtworkId, placedArtworks, placedLamps, sendMessage, pushCommand]);
 
   const handleArtworkMoved = useCallback((artworkId: string, oldPos: Vec3, newPos: Vec3) => {
     setPlacedArtworks(prev => prev.map(a => a.artworkId === artworkId ? { ...a, position: newPos } : a));

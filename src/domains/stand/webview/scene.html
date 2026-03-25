@@ -141,6 +141,13 @@
     function removeWall(wallId) {
       var entry = walls[wallId];
       if (!entry) return;
+      // Remove child lamps on this wall
+      var lampIdsToRemove = Object.keys(placedLamps);
+      for (var li = 0; li < lampIdsToRemove.length; li++) {
+        if (placedLamps[lampIdsToRemove[li]].wallId === wallId) {
+          removeLamp(lampIdsToRemove[li]);
+        }
+      }
       // Remove child artworks on this wall
       var artworkIds = Object.keys(placedArtworks);
       for (var i = 0; i < artworkIds.length; i++) {
