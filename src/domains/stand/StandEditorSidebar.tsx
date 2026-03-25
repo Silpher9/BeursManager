@@ -37,6 +37,10 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
     toggleArtworkPanel,
     selectedArtworkId,
     removeSelectedArtwork,
+    selectedLampId,
+    lampPlacementMode,
+    setLampPlacementMode,
+    removeSelectedLamp,
     selectedFairId,
     selectFair,
     saveCurrentConfig,
@@ -199,6 +203,23 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
           {selectedArtworkId && (
             <Pressable style={styles.deleteButton} onPress={removeSelectedArtwork}>
               <Text style={styles.deleteButtonText}>Verwijder kunstwerk</Text>
+            </Pressable>
+          )}
+
+          <View style={styles.separator} />
+
+          <Pressable
+            style={[styles.addButton, lampPlacementMode && styles.artworkToggleActive]}
+            onPress={() => setLampPlacementMode(!lampPlacementMode)}
+          >
+            <Text style={styles.addButtonText}>
+              {lampPlacementMode ? 'Klik op kunstwerk...' : '+ Spot lamp'}
+            </Text>
+          </Pressable>
+
+          {selectedLampId && (
+            <Pressable style={styles.deleteButton} onPress={removeSelectedLamp}>
+              <Text style={styles.deleteButtonText}>Verwijder lamp</Text>
             </Pressable>
           )}
 

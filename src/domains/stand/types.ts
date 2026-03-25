@@ -29,7 +29,11 @@ export type AppToWebViewMessage =
   | { type: 'setWallTransform'; wallId: string; position: Vec3; rotation: Vec3 }
   | { type: 'placeArtwork'; artworkId: string; wallId: string; position: Vec3; hitNormal: Vec3; heightCm: number; widthCm: number; imageUri: string; isLocal?: boolean }
   | { type: 'removeArtwork'; artworkId: string }
-  | { type: 'setArtworkPosition'; artworkId: string; localPosition: Vec3 };
+  | { type: 'setArtworkPosition'; artworkId: string; localPosition: Vec3 }
+  | { type: 'addLamp'; lamp: PlacedLamp }
+  | { type: 'removeLamp'; lampId: string }
+  | { type: 'setLampPosition'; lampId: string; position: Vec3 }
+  | { type: 'setLampTarget'; lampId: string; target: Vec3 };
 
 export type WebViewToAppMessage =
   | { type: 'pong' }
@@ -41,7 +45,9 @@ export type WebViewToAppMessage =
   | { type: 'wallTapped'; wallId: string; hitPoint: Vec3; hitNormal: Vec3 }
   | { type: 'artworkSelected'; artworkId: string | null }
   | { type: 'artworkPlaced'; artworkId: string; wallId: string; localPosition: Vec3 }
-  | { type: 'artworkMoved'; artworkId: string; oldLocalPosition: Vec3; newLocalPosition: Vec3 };
+  | { type: 'artworkMoved'; artworkId: string; oldLocalPosition: Vec3; newLocalPosition: Vec3 }
+  | { type: 'lampSelected'; lampId: string | null }
+  | { type: 'lampMoved'; lampId: string; oldPosition: Vec3; newPosition: Vec3 };
 
 // --- Placed Artwork ---
 
@@ -55,6 +61,17 @@ export type PlacedArtwork = {
   imageUri: string;
 };
 
+// --- Placed Lamp ---
+
+export type PlacedLamp = {
+  id: string;
+  type: 'spot';
+  artworkId: string;
+  wallId: string;
+  position: Vec3;     // lamp position (wall-local, on rail above artwork)
+  target: Vec3;       // target position (wall-local, on wall surface)
+};
+
 // --- Command / History ---
 
 export type EditorCommand =
@@ -65,4 +82,7 @@ export type EditorCommand =
   | { kind: 'snapWall'; wallId: string; oldPosition: Vec3; newPosition: Vec3; oldRotation: Vec3; newRotation: Vec3 }
   | { kind: 'placeArtwork'; artwork: PlacedArtwork }
   | { kind: 'removeArtwork'; artwork: PlacedArtwork }
-  | { kind: 'moveArtwork'; artworkId: string; oldPosition: Vec3; newPosition: Vec3 };
+  | { kind: 'moveArtwork'; artworkId: string; oldPosition: Vec3; newPosition: Vec3 }
+  | { kind: 'addLamp'; lamp: PlacedLamp }
+  | { kind: 'removeLamp'; lamp: PlacedLamp }
+  | { kind: 'moveLamp'; lampId: string; oldPosition: Vec3; newPosition: Vec3 };

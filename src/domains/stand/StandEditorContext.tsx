@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import type { WebView } from 'react-native-webview';
 
-import type { AppToWebViewMessage, EditorCommand, EditorMode, PlacedArtwork, SnapSuggestion, Vec3, WallConfig } from './types';
+import type { AppToWebViewMessage, EditorCommand, EditorMode, PlacedArtwork, PlacedLamp, SnapSuggestion, Vec3, WallConfig } from './types';
 import { type StandDocument, saveStandConfig, loadStandConfig } from './repository';
 
 type StandEditorState = {
@@ -32,6 +32,14 @@ type StandEditorState = {
   removeSelectedArtwork: () => void;
   setSelectedArtworkId: (id: string | null) => void;
   handleArtworkMoved: (artworkId: string, oldPos: Vec3, newPos: Vec3) => void;
+  placedLamps: PlacedLamp[];
+  selectedLampId: string | null;
+  setSelectedLampId: (id: string | null) => void;
+  lampPlacementMode: boolean;
+  setLampPlacementMode: (mode: boolean) => void;
+  addLampForArtwork: (artworkId: string) => void;
+  removeSelectedLamp: () => void;
+  handleLampMoved: (lampId: string, oldPos: Vec3, newPos: Vec3) => void;
   toggleEditorMode: () => void;
   setSnapSuggestion: (suggestion: SnapSuggestion | null) => void;
   confirmSnapSuggestion: () => void;
@@ -55,6 +63,7 @@ const StandEditorCtx = createContext<StandEditorState | null>(null);
 
 const MAX_HISTORY = 50;
 let wallCounter = 0;
+let lampCounter = 0;
 
 export function StandEditorProvider({ children }: { children: ReactNode }) {
   const db = useSQLiteContext();
@@ -78,6 +87,8 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
   const [pendingArtworkId, setPendingArtworkId] = useState<string | null>(null);
   const pendingArtworkRef = useRef<{ heightCm: number; widthCm: number; imageUri: string } | null>(null);
   const [selectedArtworkId, setSelectedArtworkId] = useState<string | null>(null);
+  const [placedLamps, setPlacedLamps] = useState<PlacedLamp[]>([]);
+  const [selectedLampId, setSelectedLampId] = useState<string | null>(null);
   // Track last known transform per wall (updated by wallMoved)
   const wallTransforms = useRef<Record<string, { position: Vec3; rotation: Vec3 }>>({});
 
@@ -219,6 +230,18 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
           sendMessage({ type: 'setArtworkPosition', artworkId: cmd.artworkId, localPosition: cmd.oldPosition });
           setPlacedArtworks(a => a.map(x => x.artworkId === cmd.artworkId ? { ...x, position: cmd.oldPosition } : x));
           break;
+        case 'addLamp':
+          sendMessage({ type: 'removeLamp', lampId: cmd.lamp.id });
+          setPlacedLamps(l => l.filter(x => x.id !== cmd.lamp.id));
+          break;
+        case 'removeLamp':
+          sendMessage({ type: 'addLamp', lamp: cmd.lamp });
+          setPlacedLamps(l => [...l, cmd.lamp]);
+          break;
+        case 'moveLamp':
+          sendMessage({ type: 'setLampPosition', lampId: cmd.lampId, position: cmd.oldPosition });
+          setPlacedLamps(l => l.map(x => x.id === cmd.lampId ? { ...x, position: cmd.oldPosition } : x));
+          break;
       }
 
       setRedoStack(r => [...r, cmd]);
@@ -262,6 +285,18 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
         case 'moveArtwork':
           sendMessage({ type: 'setArtworkPosition', artworkId: cmd.artworkId, localPosition: cmd.newPosition });
           setPlacedArtworks(a => a.map(x => x.artworkId === cmd.artworkId ? { ...x, position: cmd.newPosition } : x));
+          break;
+        case 'addLamp':
+          sendMessage({ type: 'addLamp', lamp: cmd.lamp });
+          setPlacedLamps(l => [...l, cmd.lamp]);
+          break;
+        case 'removeLamp':
+          sendMessage({ type: 'removeLamp', lampId: cmd.lamp.id });
+          setPlacedLamps(l => l.filter(x => x.id !== cmd.lamp.id));
+          break;
+        case 'moveLamp':
+          sendMessage({ type: 'setLampPosition', lampId: cmd.lampId, position: cmd.newPosition });
+          setPlacedLamps(l => l.map(x => x.id === cmd.lampId ? { ...x, position: cmd.newPosition } : x));
           break;
       }
 
@@ -409,6 +444,60 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     pushCommand({ kind: 'moveArtwork', artworkId, oldPosition: oldPos, newPosition: newPos });
   }, [pushCommand]);
 
+  // --- Lamp actions ---
+  const [lampPlacementMode, setLampPlacementMode] = useState(false);
+
+  const addLampForArtwork = useCallback((artworkId: string) => {
+    // Find artwork to get its position and wall
+    const artwork = placedArtworks.find(a => a.artworkId === artworkId);
+    if (!artwork) return;
+
+    // Check if artwork already has a lamp
+    if (placedLamps.some(l => l.artworkId === artworkId)) return;
+
+    const heightM = artwork.heightCm / 100;
+    const wallDepthM = walls.find(w => w.id === artwork.wallId)?.depth ?? 10;
+    const depthOffset = wallDepthM / 200 + 0.40; // 40cm from wall surface
+    const side = artwork.position.z >= 0 ? 1 : -1;
+
+    lampCounter++;
+    const lamp: PlacedLamp = {
+      id: `lamp-${lampCounter}`,
+      type: 'spot',
+      artworkId,
+      wallId: artwork.wallId,
+      position: {
+        x: artwork.position.x,
+        y: artwork.position.y + heightM / 2 + 0.35, // 35cm above artwork top
+        z: side * depthOffset,
+      },
+      target: {
+        x: artwork.position.x,
+        y: artwork.position.y,
+        z: artwork.position.z,
+      },
+    };
+    sendMessage({ type: 'addLamp', lamp });
+    setPlacedLamps(prev => [...prev, lamp]);
+    pushCommand({ kind: 'addLamp', lamp });
+    setLampPlacementMode(false);
+  }, [placedArtworks, placedLamps, walls, sendMessage, pushCommand]);
+
+  const removeSelectedLamp = useCallback(() => {
+    if (!selectedLampId) return;
+    const lamp = placedLamps.find(l => l.id === selectedLampId);
+    if (!lamp) return;
+    sendMessage({ type: 'removeLamp', lampId: selectedLampId });
+    setPlacedLamps(prev => prev.filter(l => l.id !== selectedLampId));
+    pushCommand({ kind: 'removeLamp', lamp });
+    setSelectedLampId(null);
+  }, [selectedLampId, placedLamps, sendMessage, pushCommand]);
+
+  const handleLampMoved = useCallback((lampId: string, oldPos: Vec3, newPos: Vec3) => {
+    setPlacedLamps(prev => prev.map(l => l.id === lampId ? { ...l, position: newPos } : l));
+    pushCommand({ kind: 'moveLamp', lampId, oldPosition: oldPos, newPosition: newPos });
+  }, [pushCommand]);
+
   const toggleArtworkPanel = useCallback(() => {
     setArtworkPanelVisible(prev => !prev);
   }, []);
@@ -426,11 +515,15 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     setHasUnsavedChanges(false);
 
     // Clear current state
+    // Remove existing scene objects
+    placedLamps.forEach(l => sendMessage({ type: 'removeLamp', lampId: l.id }));
     walls.forEach(w => sendMessage({ type: 'removeWall', wallId: w.id }));
     setWalls([]);
     setPlacedArtworks([]);
+    setPlacedLamps([]);
     setPendingArtworkId(null);
     setSelectedArtworkId(null);
+    setSelectedLampId(null);
     setSelectedWallId(null);
     setSnapSuggestion(null);
     setHistory([]);
@@ -477,6 +570,19 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       }
       setPlacedArtworks(config.artworks);
     }
+
+    // Load lamps
+    if (config.lamps && config.lamps.length > 0) {
+      for (const lamp of config.lamps) {
+        sendMessage({ type: 'addLamp', lamp });
+      }
+      setPlacedLamps(config.lamps);
+      const maxLampNum = config.lamps.reduce((max, l) => {
+        const num = parseInt(l.id.replace('lamp-', ''), 10);
+        return isNaN(num) ? max : Math.max(max, num);
+      }, 0);
+      lampCounter = maxLampNum;
+    }
   }, [db, walls, sendMessage]);
 
   const saveCurrentConfig = useCallback(async () => {
@@ -489,10 +595,11 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
         rotation: wallTransforms.current[w.id]?.rotation ?? { x: 0, y: 0, z: 0 },
       })),
       artworks: placedArtworks,
+      lamps: placedLamps,
     };
     await saveStandConfig(db, selectedFairId, doc);
     setHasUnsavedChanges(false);
-  }, [db, selectedFairId, walls, placedArtworks]);
+  }, [db, selectedFairId, walls, placedArtworks, placedLamps]);
 
   const registerWebView = useCallback((ref: WebView | null) => {
     webViewRef.current = ref;
@@ -533,6 +640,14 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       removeSelectedArtwork,
       setSelectedArtworkId,
       handleArtworkMoved,
+      placedLamps,
+      selectedLampId,
+      setSelectedLampId,
+      lampPlacementMode,
+      setLampPlacementMode,
+      addLampForArtwork,
+      removeSelectedLamp,
+      handleLampMoved,
       addWall,
       removeSelectedWall,
       updateWallDimension,

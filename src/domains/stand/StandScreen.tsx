@@ -25,7 +25,7 @@ export function StandScreen() {
   const db = useSQLiteContext();
   const [fairs, setFairs] = useState<FairListItem[]>([]);
 
-  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedFairId, selectedWallId, artworkPanelVisible, placedArtworks, addWall, removeSelectedWall, selectFair, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, handleArtworkPlaced, handleArtworkMoved, setSelectedArtworkId, replayTransforms, registerWebView, registerIframe } = useStandEditor();
+  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedFairId, selectedWallId, artworkPanelVisible, placedArtworks, placedLamps, lampPlacementMode, addWall, removeSelectedWall, selectFair, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, handleArtworkPlaced, handleArtworkMoved, setSelectedArtworkId, setSelectedLampId, addLampForArtwork, handleLampMoved, replayTransforms, registerWebView, registerIframe } = useStandEditor();
 
   // Fetch fairs for selection gate
   useEffect(() => {
@@ -74,7 +74,11 @@ export function StandScreen() {
     placedArtworks.forEach(a => {
       sendMessage({ type: 'placeArtwork', artworkId: a.artworkId, wallId: a.wallId, position: a.position, hitNormal: a.hitNormal, heightCm: a.heightCm, widthCm: a.widthCm, imageUri: a.imageUri, isLocal: true });
     });
-  }, [walls, snapEnabled, snapDegrees, editorMode, placedArtworks, sendMessage, replayTransforms]);
+    // Replay lamps
+    placedLamps.forEach(l => {
+      sendMessage({ type: 'addLamp', lamp: l });
+    });
+  }, [walls, snapEnabled, snapDegrees, editorMode, placedArtworks, placedLamps, sendMessage, replayTransforms]);
 
   const handleIncomingMessage = useCallback((data: WebViewToAppMessage) => {
     if (data.type === 'sceneReady') {
@@ -105,12 +109,23 @@ export function StandScreen() {
       handleArtworkPlaced(data.artworkId, data.wallId, data.localPosition);
     }
     if (data.type === 'artworkSelected') {
+      // If in lamp placement mode, create lamp for this artwork
+      if (data.artworkId && lampPlacementMode) {
+        addLampForArtwork(data.artworkId);
+        return;
+      }
       setSelectedArtworkId(data.artworkId);
     }
     if (data.type === 'artworkMoved') {
       handleArtworkMoved(data.artworkId, data.oldLocalPosition, data.newLocalPosition);
     }
-  }, [sendMessage, setSceneReady, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, handleArtworkPlaced, handleArtworkMoved, setSelectedArtworkId, replayState]);
+    if (data.type === 'lampSelected') {
+      setSelectedLampId(data.lampId);
+    }
+    if (data.type === 'lampMoved') {
+      handleLampMoved(data.lampId, data.oldPosition, data.newPosition);
+    }
+  }, [sendMessage, setSceneReady, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, handleArtworkPlaced, handleArtworkMoved, setSelectedArtworkId, setSelectedLampId, lampPlacementMode, addLampForArtwork, handleLampMoved, replayState]);
 
   // Web: luister naar postMessage van iframe
   useEffect(() => {

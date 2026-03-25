@@ -83,6 +83,18 @@
       if (data.type === 'setArtworkPosition' && data.artworkId) {
         setArtworkPosition(data.artworkId, data.localPosition);
       }
+      if (data.type === 'addLamp' && data.lamp) {
+        addLamp(data.lamp);
+      }
+      if (data.type === 'removeLamp' && data.lampId) {
+        removeLamp(data.lampId);
+      }
+      if (data.type === 'setLampPosition' && data.lampId) {
+        setLampPosition(data.lampId, data.position);
+      }
+      if (data.type === 'setLampTarget' && data.lampId) {
+        setLampTarget(data.lampId, data.target);
+      }
     }
 
     document.addEventListener('message', handleAppMessage);
@@ -295,6 +307,14 @@
         clearDistanceLabels();
       } else {
         updateDistanceLabels();
+      }
+      // Enable/disable lamp drag behaviors
+      var lampIds = Object.keys(placedLamps);
+      for (var li = 0; li < lampIds.length; li++) {
+        var lampEntry = placedLamps[lampIds[li]];
+        if (lampEntry.dragBehavior) {
+          lampEntry.dragBehavior.enabled = (mode === 'build');
+        }
       }
       // Enable/disable artwork drag behaviors
       var artIds = Object.keys(placedArtworks);
@@ -662,6 +682,147 @@
       updateDistanceLabels();
     }
 
+    // --- Lamp management (artwork-first) ---
+    var placedLamps = {}; // lampId -> { mesh, light, targetMesh, wallId, dragBehavior }
+    var selectedLampId = null;
+    var LAMP_OFFSET_Y = 0.35; // 35cm above artwork top
+    var LAMP_OFFSET_Z = 0.40; // 40cm from wall surface
+
+    function addLamp(lamp) {
+      if (placedLamps[lamp.id]) return;
+
+      var wallEntry = walls[lamp.wallId];
+      if (!wallEntry) return;
+
+      // Lamp mesh (small cylinder) — child of wall
+      var mesh = BABYLON.MeshBuilder.CreateCylinder('lamp_' + lamp.id, {
+        height: 0.06, diameter: 0.12,
+      }, scene);
+      mesh.parent = wallEntry.mesh;
+      mesh.position = new BABYLON.Vector3(lamp.position.x, lamp.position.y, lamp.position.z);
+      var lampMat = new BABYLON.StandardMaterial('lampMat_' + lamp.id, scene);
+      lampMat.diffuseColor = new BABYLON.Color3(0.15, 0.15, 0.15);
+      lampMat.emissiveColor = new BABYLON.Color3(1, 0.95, 0.8);
+      mesh.material = lampMat;
+      mesh.metadata = { lampId: lamp.id };
+
+      // Target marker (small sphere on wall surface)
+      var targetMesh = BABYLON.MeshBuilder.CreateSphere('lampTarget_' + lamp.id, {
+        diameter: 0.04,
+      }, scene);
+      targetMesh.parent = wallEntry.mesh;
+      targetMesh.position = new BABYLON.Vector3(lamp.target.x, lamp.target.y, lamp.target.z);
+      var targetMat = new BABYLON.StandardMaterial('lampTargetMat_' + lamp.id, scene);
+      targetMat.diffuseColor = new BABYLON.Color3(1, 0.8, 0);
+      targetMat.emissiveColor = new BABYLON.Color3(1, 0.8, 0);
+      targetMesh.material = targetMat;
+      targetMesh.isVisible = false; // only show when lamp selected
+      targetMesh.metadata = { lampTargetId: lamp.id };
+
+      // SpotLight — world space, updated from wall-local positions
+      var worldLampPos = BABYLON.Vector3.TransformCoordinates(mesh.position, wallEntry.mesh.getWorldMatrix());
+      var worldTargetPos = BABYLON.Vector3.TransformCoordinates(targetMesh.position, wallEntry.mesh.getWorldMatrix());
+      var direction = worldTargetPos.subtract(worldLampPos).normalize();
+
+      var light = new BABYLON.SpotLight(
+        'spotLight_' + lamp.id,
+        worldLampPos,
+        direction,
+        Math.PI / 4,
+        2,
+        scene
+      );
+      light.intensity = 2.0;
+      light.diffuse = new BABYLON.Color3(1, 0.97, 0.92);
+
+      // Rail drag for lamp (1D along wall X-axis, fixed Y and Z)
+      var railDrag = new BABYLON.PointerDragBehavior({
+        dragAxis: new BABYLON.Vector3(1, 0, 0), // local X only (along wall)
+      });
+      railDrag.useObjectOrientationForDragging = true;
+      railDrag.moveAttached = true;
+      railDrag.enabled = (editorMode === 'build');
+      var lampDragStartPos = null;
+
+      railDrag.onDragStartObservable.add(function () {
+        lampDragStartPos = { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z };
+        selectLamp(lamp.id);
+      });
+      railDrag.onDragObservable.add(function () {
+        // Constrain to wall width
+        var wallHW = cmToM(wallEntry.config.width) / 2;
+        mesh.position.x = Math.max(-wallHW, Math.min(wallHW, mesh.position.x));
+        // Keep Y and Z fixed
+        mesh.position.y = lampDragStartPos ? lampDragStartPos.y : mesh.position.y;
+        mesh.position.z = lampDragStartPos ? lampDragStartPos.z : mesh.position.z;
+        updateLampLight(lamp.id);
+      });
+      railDrag.onDragEndObservable.add(function () {
+        if (lampDragStartPos) {
+          var newPos = { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z };
+          sendToApp({ type: 'lampMoved', lampId: lamp.id, oldPosition: lampDragStartPos, newPosition: newPos });
+          lampDragStartPos = null;
+        }
+      });
+      mesh.addBehavior(railDrag);
+
+      placedLamps[lamp.id] = { mesh: mesh, light: light, targetMesh: targetMesh, wallId: lamp.wallId, dragBehavior: railDrag };
+    }
+
+    function updateLampLight(lampId) {
+      var entry = placedLamps[lampId];
+      if (!entry) return;
+      var wallEntry = walls[entry.wallId];
+      if (!wallEntry) return;
+      var wm = wallEntry.mesh.getWorldMatrix();
+      var worldLampPos = BABYLON.Vector3.TransformCoordinates(entry.mesh.position, wm);
+      var worldTargetPos = BABYLON.Vector3.TransformCoordinates(entry.targetMesh.position, wm);
+      entry.light.position = worldLampPos;
+      entry.light.direction = worldTargetPos.subtract(worldLampPos).normalize();
+    }
+
+    function removeLamp(lampId) {
+      var entry = placedLamps[lampId];
+      if (!entry) return;
+      entry.light.dispose();
+      if (entry.targetMesh.material) entry.targetMesh.material.dispose();
+      entry.targetMesh.dispose();
+      if (entry.mesh.material) entry.mesh.material.dispose();
+      entry.mesh.dispose();
+      delete placedLamps[lampId];
+      if (selectedLampId === lampId) {
+        selectedLampId = null;
+        sendToApp({ type: 'lampSelected', lampId: null });
+      }
+    }
+
+    function setLampPosition(lampId, position) {
+      var entry = placedLamps[lampId];
+      if (!entry) return;
+      entry.mesh.position = new BABYLON.Vector3(position.x, position.y, position.z);
+      updateLampLight(lampId);
+    }
+
+    function setLampTarget(lampId, target) {
+      var entry = placedLamps[lampId];
+      if (!entry) return;
+      entry.targetMesh.position = new BABYLON.Vector3(target.x, target.y, target.z);
+      updateLampLight(lampId);
+    }
+
+    function selectLamp(lampId) {
+      // Hide previous target
+      if (selectedLampId && placedLamps[selectedLampId]) {
+        placedLamps[selectedLampId].targetMesh.isVisible = false;
+      }
+      selectedLampId = lampId;
+      // Show target for selected lamp
+      if (lampId && placedLamps[lampId]) {
+        placedLamps[lampId].targetMesh.isVisible = true;
+      }
+      sendToApp({ type: 'lampSelected', lampId: lampId });
+    }
+
     // --- Wall snapping ---
     var ghostMesh = null;
     var SNAP_THRESHOLD = 0.3; // 30cm in meters
@@ -966,6 +1127,11 @@
           var pickResult = pointerInfo.pickInfo;
           if (pickResult && pickResult.hit && pickResult.pickedMesh) {
             var meta = pickResult.pickedMesh.metadata;
+            // Lamp click
+            if (meta && meta.lampId) {
+              selectLamp(meta.lampId);
+              return;
+            }
             // Artwork click
             if (meta && meta.artworkId) {
               selectArtwork(meta.artworkId);
@@ -993,6 +1159,10 @@
             selectedArtworkId = null;
             sendToApp({ type: 'artworkSelected', artworkId: null });
             clearDistanceLabels();
+          }
+          if (selectedLampId) {
+            selectedLampId = null;
+            sendToApp({ type: 'lampSelected', lampId: null });
           }
         });
 
