@@ -42,7 +42,7 @@ function LampControls({ lampId, initial }: {
   lampId: string;
   initial: { intensity: number; angle: number; innerAngle: number; exponent: number; range: number; diffuseR: number; diffuseG: number; diffuseB: number; helperVisible: boolean };
 }) {
-  const { sendMessage, setLampTypeDefault, applyDefaultsToAllLamps } = useStandEditor();
+  const { sendMessage, lampTypeDefaults, setLampTypeDefault, applyDefaultsToAllLamps } = useStandEditor();
   const [intensity, setIntensity] = useState(initial.intensity);
   const [angle, setAngle] = useState(initial.angle);
   const [innerAngle, setInnerAngle] = useState(initial.innerAngle ?? 0);
@@ -130,8 +130,14 @@ function LampControls({ lampId, initial }: {
       }}>
         <Text style={styles.defaultButtonText}>Maak default voor spotlights</Text>
       </Pressable>
-      <Pressable style={styles.applyAllButton} onPress={() => applyDefaultsToAllLamps('spot')}>
-        <Text style={styles.applyAllText}>Apply to all spotlights</Text>
+      <Pressable
+        style={[styles.applyAllButton, !lampTypeDefaults['spot'] && { opacity: 0.3 }]}
+        onPress={() => lampTypeDefaults['spot'] && applyDefaultsToAllLamps('spot')}
+        disabled={!lampTypeDefaults['spot']}
+      >
+        <Text style={styles.applyAllText}>
+          {lampTypeDefaults['spot'] ? 'Apply to all spotlights' : 'Eerst "Maak default" gebruiken'}
+        </Text>
       </Pressable>
     </>
   );
