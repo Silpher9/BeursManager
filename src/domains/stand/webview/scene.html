@@ -260,32 +260,44 @@
     }
 
     // --- Editor mode / labels ---
-    function createLabel(wallId) {
-      if (!guiTexture) return;
-      var entry = walls[wallId];
-      if (!entry || entry.label) return;
-
-      var rect = new BABYLON.GUI.Rectangle('label_' + wallId);
-      rect.width = '80px';
-      rect.height = '24px';
+    function createWallLabel(text, mesh, offsetX, offsetY) {
+      var rect = new BABYLON.GUI.Rectangle();
+      rect.width = '70px';
+      rect.height = '20px';
       rect.cornerRadius = 4;
       rect.color = 'transparent';
       rect.background = 'rgba(58, 46, 34, 0.75)';
       rect.thickness = 0;
 
-      var text = new BABYLON.GUI.TextBlock();
-      text.text = entry.config.width + 'cm';
-      text.color = '#FFFDF9';
-      text.fontSize = 12;
-      text.fontWeight = 'bold';
-      rect.addControl(text);
+      var tb = new BABYLON.GUI.TextBlock();
+      tb.text = text;
+      tb.color = '#FFFDF9';
+      tb.fontSize = 11;
+      tb.fontWeight = 'bold';
+      rect.addControl(tb);
 
       guiTexture.addControl(rect);
-      rect.linkWithMesh(entry.mesh);
-      rect.linkOffsetY = -20;
+      rect.linkWithMesh(mesh);
+      rect.linkOffsetXInPixels = offsetX;
+      rect.linkOffsetYInPixels = offsetY;
+      return { rect: rect, textBlock: tb };
+    }
 
-      entry.label = rect;
-      entry.labelText = text;
+    function createLabel(wallId) {
+      if (!guiTexture) return;
+      var entry = walls[wallId];
+      if (!entry || entry.label) return;
+
+      // Width label at bottom of wall
+      var widthLabel = createWallLabel(entry.config.width + 'cm', entry.mesh, 0, 80);
+      // Height labels at both sides
+      var heightLabelL = createWallLabel(entry.config.height + 'cm', entry.mesh, -120, 0);
+      var heightLabelR = createWallLabel(entry.config.height + 'cm', entry.mesh, 120, 0);
+
+      entry.label = [widthLabel.rect, heightLabelL.rect, heightLabelR.rect];
+      entry.labelText = widthLabel.textBlock;
+      entry.heightLabelText = heightLabelL.textBlock;
+      entry.heightLabelTextR = heightLabelR.textBlock;
 
       if (editorMode !== 'build') {
         rect.isVisible = false;
@@ -296,15 +308,25 @@
       var entry = walls[wallId];
       if (!entry || !entry.labelText) return;
       entry.labelText.text = entry.config.width + 'cm';
+      if (entry.heightLabelText) entry.heightLabelText.text = entry.config.height + 'cm';
+      if (entry.heightLabelTextR) entry.heightLabelTextR.text = entry.config.height + 'cm';
     }
 
     function removeLabel(wallId) {
       var entry = walls[wallId];
       if (!entry || !entry.label) return;
-      guiTexture.removeControl(entry.label);
-      entry.label.dispose();
+      if (Array.isArray(entry.label)) {
+        for (var li = 0; li < entry.label.length; li++) {
+          guiTexture.removeControl(entry.label[li]);
+          entry.label[li].dispose();
+        }
+      } else {
+        guiTexture.removeControl(entry.label);
+        entry.label.dispose();
+      }
       entry.label = null;
       entry.labelText = null;
+      entry.heightLabelText = null;
     }
 
     function setEditorMode(mode) {
@@ -338,7 +360,13 @@
       for (var i = 0; i < wallIds.length; i++) {
         var entry = walls[wallIds[i]];
         if (entry.label) {
-          entry.label.isVisible = (mode === 'build');
+          if (Array.isArray(entry.label)) {
+            for (var lj = 0; lj < entry.label.length; lj++) {
+              entry.label[lj].isVisible = (mode === 'build');
+            }
+          } else {
+            entry.label.isVisible = (mode === 'build');
+          }
         }
       }
       // In view mode: detach gizmo, disable pointer interaction
