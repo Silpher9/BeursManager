@@ -91,6 +91,8 @@ De Stand tab draait BabylonJS in een WebView (`src/domains/stand/webview/scene.h
 
 **Waarom:** Vrije 3D-lampplaatsing leidt tot UX-frustratie door gebrek aan diepte-perceptie op een 2D-scherm. Het artwork-first model geeft direct een goed verlichtingsresultaat met minimale gebruikersinput.
 
+**Lighting dev tools (tijdelijk, #19):** Het dev tools panel is een **runtime-only tuning interface** — geen persistente state. Scene is truth-source voor lampwaarden. Bij lamp-selectie stuurt de scene een `lampRuntimeState` snapshot naar de app; het panel hydrateert useState daarmee. Wijzigingen gaan als `setLampProperty` overrides terug naar de scene. Dit is een tijdelijk debug-contract dat later verwijderd kan worden zonder de editor-architectuur aan te raken.
+
 **Lamp transform-model:** Lamp mesh en target mesh zijn **wall-local** (children van wand-mesh). De BabylonJS `SpotLight` is een afgeleide **world-space** representatie die elke frame gesynchroniseerd wordt via `updateLampLight()`. `lampMoved` en `lampTargetMoved` zijn bewust aparte bridge-contracten: lamp-body beweegt over de rail (1D), target beweegt over het wandvlak (2D). Beide updaten alleen hun eigen veld in `PlacedLamp` (`position` resp. `target`).
 
 ## Externe services
