@@ -45,6 +45,7 @@ function LampControls({ lampId, initial }: {
   const { sendMessage } = useStandEditor();
   const [intensity, setIntensity] = useState(initial.intensity);
   const [angle, setAngle] = useState(initial.angle);
+  const [innerAngle, setInnerAngle] = useState(0);
   const [exponent, setExponent] = useState(initial.exponent);
   const [range, setRange] = useState(initial.range);
   const [helperVisible, setHelperVisible] = useState(initial.helperVisible);
@@ -56,6 +57,7 @@ function LampControls({ lampId, initial }: {
   const CLAMPS: Record<string, [number, number]> = {
     intensity: [0, 5],
     angle: [0.1, Math.PI / 2 - 0.05],
+    innerAngle: [0, Math.PI / 2 - 0.1],
     exponent: [0.1, 10],
     range: [0.5, 50],
   };
@@ -93,6 +95,7 @@ function LampControls({ lampId, initial }: {
       <Text style={styles.sectionLabel}>Geselecteerde lamp</Text>
       <NumRow label="Intensity" value={intensity} step={0.2} onSubmit={setVal(setIntensity, 'intensity')} />
       <NumRow label="Angle" value={angle} step={0.05} onSubmit={setVal(setAngle, 'angle')} />
+      <NumRow label="Inner Angle" value={innerAngle} step={0.05} onSubmit={setVal(setInnerAngle, 'innerAngle')} />
       <NumRow label="Exponent" value={exponent} step={0.5} onSubmit={setVal(setExponent, 'exponent')} />
       <NumRow label="Range" value={range} step={1} onSubmit={setVal(setRange, 'range')} />
 
