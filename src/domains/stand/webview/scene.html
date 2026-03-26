@@ -975,8 +975,8 @@
           var coneRadius = Math.tan(entry.light.angle / 2) * dist;
 
           var helper = BABYLON.MeshBuilder.CreateCylinder('lampHelper_' + lampId, {
-            diameterTop: 0,
-            diameterBottom: coneRadius * 2,
+            diameterTop: coneRadius * 2,
+            diameterBottom: 0,
             height: dist,
           }, scene);
           var helperMat = new BABYLON.StandardMaterial('lampHelperMat_' + lampId, scene);
