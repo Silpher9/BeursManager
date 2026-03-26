@@ -474,7 +474,15 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
   }, [pushCommand]);
 
   // --- Lamp actions ---
-  const [lampPlacementMode, setLampPlacementMode] = useState(false);
+  const [lampPlacementMode, setLampPlacementModeRaw] = useState(false);
+  const setLampPlacementMode = useCallback((mode: boolean) => {
+    setLampPlacementModeRaw(mode);
+    if (mode) {
+      // Clear lamp selection so focus-guard doesn't eat first artwork tap
+      setSelectedLampId(null);
+      setLampRuntimeState(null);
+    }
+  }, []);
 
   const addLampForArtwork = useCallback((artworkId: string) => {
     // Find artwork to get its position and wall

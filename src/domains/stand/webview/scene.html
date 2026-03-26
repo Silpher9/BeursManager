@@ -1364,10 +1364,10 @@
               selectLamp(meta.lampId);
               return;
             }
-            // In lamp focus mode: ignore artwork/wall clicks
+            // In lamp focus mode: deselect lamp but let click fall through
             if (selectedLampId) {
-              selectLamp(null); // deselect lamp on any non-lamp click
-              return;
+              selectLamp(null);
+              // Don't return — let artwork/wall click proceed
             }
             // Artwork click
             if (meta && meta.artworkId) {

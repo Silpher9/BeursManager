@@ -212,7 +212,9 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
 
           <Pressable
             style={[styles.addButton, lampPlacementMode && styles.artworkToggleActive]}
-            onPress={() => setLampPlacementMode(!lampPlacementMode)}
+            onPress={() => {
+              setLampPlacementMode(!lampPlacementMode);
+            }}
           >
             <Text style={styles.addButtonText}>
               {lampPlacementMode ? 'Klik op kunstwerk...' : '+ Spot lamp'}
