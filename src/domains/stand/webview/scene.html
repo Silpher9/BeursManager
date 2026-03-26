@@ -120,8 +120,9 @@
       var mat = new BABYLON.StandardMaterial('wallMat_' + id, scene);
       mat.diffuseColor = new BABYLON.Color3(0.95, 0.93, 0.88);
       mat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
-      mat.backFaceCulling = false; // illuminate both sides of wall
+      mat.backFaceCulling = false;
       mat.twoSidedLighting = true;
+      mat.maxSimultaneousLights = 16; // support many spot lamps per wall
       return mat;
     }
 
@@ -440,6 +441,7 @@
 
       var frontMat = new BABYLON.StandardMaterial('artFrontMat_' + artworkId, scene);
       frontMat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+      frontMat.maxSimultaneousLights = 16;
       if (imageUri && typeof imageUri === 'string' && imageUri.length > 0) {
         try {
           var tex = new BABYLON.Texture(imageUri, scene);
