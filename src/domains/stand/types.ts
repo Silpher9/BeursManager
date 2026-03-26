@@ -33,7 +33,10 @@ export type AppToWebViewMessage =
   | { type: 'addLamp'; lamp: PlacedLamp }
   | { type: 'removeLamp'; lampId: string }
   | { type: 'setLampPosition'; lampId: string; position: Vec3 }
-  | { type: 'setLampTarget'; lampId: string; target: Vec3 };
+  | { type: 'setLampTarget'; lampId: string; target: Vec3 }
+  | { type: 'setLampProperty'; lampId: string; property: string; value: number }
+  | { type: 'setSceneProperty'; property: string; value: number }
+  | { type: 'toggleLampHelper'; lampId: string; visible: boolean };
 
 export type WebViewToAppMessage =
   | { type: 'pong' }
@@ -48,7 +51,8 @@ export type WebViewToAppMessage =
   | { type: 'artworkMoved'; artworkId: string; oldLocalPosition: Vec3; newLocalPosition: Vec3 }
   | { type: 'lampSelected'; lampId: string | null }
   | { type: 'lampMoved'; lampId: string; oldPosition: Vec3; newPosition: Vec3 }
-  | { type: 'lampTargetMoved'; lampId: string; oldTarget: Vec3; newTarget: Vec3 };
+  | { type: 'lampTargetMoved'; lampId: string; oldTarget: Vec3; newTarget: Vec3 }
+  | { type: 'lampRuntimeState'; lampId: string; intensity: number; angle: number; exponent: number; range: number; helperVisible: boolean };
 
 // --- Placed Artwork ---
 

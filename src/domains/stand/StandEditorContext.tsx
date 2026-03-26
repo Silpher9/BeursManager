@@ -23,6 +23,8 @@ type StandEditorState = {
   replayTransforms: () => void;
   artworkPanelVisible: boolean;
   toggleArtworkPanel: () => void;
+  devToolsVisible: boolean;
+  toggleDevTools: () => void;
   placedArtworks: PlacedArtwork[];
   pendingArtworkId: string | null;
   selectedArtworkId: string | null;
@@ -40,6 +42,8 @@ type StandEditorState = {
   addLampForArtwork: (artworkId: string) => void;
   removeSelectedLamp: () => void;
   handleLampMoved: (lampId: string, oldPos: Vec3, newPos: Vec3) => void;
+  lampRuntimeState: { intensity: number; angle: number; exponent: number; range: number; helperVisible: boolean } | null;
+  setLampRuntimeState: (state: { intensity: number; angle: number; exponent: number; range: number; helperVisible: boolean } | null) => void;
   handleLampTargetMoved: (lampId: string, oldTarget: Vec3, newTarget: Vec3) => void;
   toggleEditorMode: () => void;
   setSnapSuggestion: (suggestion: SnapSuggestion | null) => void;
@@ -84,12 +88,14 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
   const [selectedFairId, setSelectedFairId] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [artworkPanelVisible, setArtworkPanelVisible] = useState(false);
+  const [devToolsVisible, setDevToolsVisible] = useState(false);
   const [placedArtworks, setPlacedArtworks] = useState<PlacedArtwork[]>([]);
   const [pendingArtworkId, setPendingArtworkId] = useState<string | null>(null);
   const pendingArtworkRef = useRef<{ heightCm: number; widthCm: number; imageUri: string } | null>(null);
   const [selectedArtworkId, setSelectedArtworkId] = useState<string | null>(null);
   const [placedLamps, setPlacedLamps] = useState<PlacedLamp[]>([]);
   const [selectedLampId, setSelectedLampId] = useState<string | null>(null);
+  const [lampRuntimeState, setLampRuntimeState] = useState<{ intensity: number; angle: number; exponent: number; range: number; helperVisible: boolean } | null>(null);
   // Track last known transform per wall (updated by wallMoved)
   const wallTransforms = useRef<Record<string, { position: Vec3; rotation: Vec3 }>>({});
 
@@ -522,6 +528,10 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     pushCommand({ kind: 'moveLampTarget', lampId, oldTarget, newTarget });
   }, [pushCommand]);
 
+  const toggleDevTools = useCallback(() => {
+    setDevToolsVisible(prev => !prev);
+  }, []);
+
   const toggleArtworkPanel = useCallback(() => {
     setArtworkPanelVisible(prev => !prev);
   }, []);
@@ -655,6 +665,8 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       replayTransforms,
       artworkPanelVisible: artworkPanelVisible && editorMode === 'build',
       toggleArtworkPanel,
+      devToolsVisible: devToolsVisible && editorMode === 'build',
+      toggleDevTools,
       placedArtworks,
       pendingArtworkId,
       selectedArtworkId,
@@ -673,6 +685,8 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       removeSelectedLamp,
       handleLampMoved,
       handleLampTargetMoved,
+      lampRuntimeState,
+      setLampRuntimeState,
       addWall,
       removeSelectedWall,
       updateWallDimension,

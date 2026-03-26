@@ -12,6 +12,7 @@ import { useResponsive } from '@/src/shared/hooks/useResponsive';
 import { palette } from '@/src/shared/theme/colors';
 
 import { ArtworkBrowserPanel } from './ArtworkBrowserPanel';
+import { LightingDevPanel } from './LightingDevPanel';
 import { useStandEditor } from './StandEditorContext';
 
 import sceneHtml from '@/src/domains/stand/webview/scene.html';
@@ -25,7 +26,7 @@ export function StandScreen() {
   const db = useSQLiteContext();
   const [fairs, setFairs] = useState<FairListItem[]>([]);
 
-  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedFairId, selectedWallId, artworkPanelVisible, placedArtworks, placedLamps, lampPlacementMode, addWall, removeSelectedWall, selectFair, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, handleArtworkPlaced, handleArtworkMoved, setSelectedArtworkId, setSelectedLampId, addLampForArtwork, handleLampMoved, handleLampTargetMoved, replayTransforms, registerWebView, registerIframe } = useStandEditor();
+  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedFairId, selectedWallId, artworkPanelVisible, devToolsVisible, placedArtworks, placedLamps, lampPlacementMode, addWall, removeSelectedWall, selectFair, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, handleArtworkPlaced, handleArtworkMoved, setSelectedArtworkId, setSelectedLampId, setLampRuntimeState, addLampForArtwork, handleLampMoved, handleLampTargetMoved, replayTransforms, registerWebView, registerIframe } = useStandEditor();
 
   // Fetch fairs for selection gate
   useEffect(() => {
@@ -121,6 +122,16 @@ export function StandScreen() {
     }
     if (data.type === 'lampSelected') {
       setSelectedLampId(data.lampId);
+      if (!data.lampId) setLampRuntimeState(null);
+    }
+    if (data.type === 'lampRuntimeState') {
+      setLampRuntimeState({
+        intensity: data.intensity,
+        angle: data.angle,
+        exponent: data.exponent,
+        range: data.range,
+        helperVisible: data.helperVisible,
+      });
     }
     if (data.type === 'lampMoved') {
       handleLampMoved(data.lampId, data.oldPosition, data.newPosition);
@@ -128,7 +139,7 @@ export function StandScreen() {
     if (data.type === 'lampTargetMoved') {
       handleLampTargetMoved(data.lampId, data.oldTarget, data.newTarget);
     }
-  }, [sendMessage, setSceneReady, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, handleArtworkPlaced, handleArtworkMoved, setSelectedArtworkId, setSelectedLampId, lampPlacementMode, addLampForArtwork, handleLampMoved, handleLampTargetMoved, replayState]);
+  }, [sendMessage, setSceneReady, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, handleArtworkPlaced, handleArtworkMoved, setSelectedArtworkId, setSelectedLampId, setLampRuntimeState, lampPlacementMode, addLampForArtwork, handleLampMoved, handleLampTargetMoved, replayState]);
 
   // Web: luister naar postMessage van iframe
   useEffect(() => {
@@ -216,7 +227,13 @@ export function StandScreen() {
     </View>
   ) : null;
 
-  const artworkPanel = artworkPanelVisible && selectedFairId ? (
+  const devToolsPanel = devToolsVisible ? (
+    <View style={[styles.artworkPanelContainer, { bottom: Math.max(16, insets.bottom + 8), left: isTablet ? Math.max(16, insets.left + 8) : 16, right: Math.max(16, insets.right + 8) }]}>
+      <LightingDevPanel />
+    </View>
+  ) : null;
+
+  const artworkPanel = artworkPanelVisible && selectedFairId && !devToolsVisible ? (
     <View style={[styles.artworkPanelContainer, { bottom: Math.max(16, insets.bottom + 8), left: isTablet ? Math.max(16, insets.left + 8) : 16, right: Math.max(16, insets.right + 8) }]}>
       <ArtworkBrowserPanel fairId={selectedFairId} docked={isTablet} />
     </View>
@@ -238,6 +255,7 @@ export function StandScreen() {
         )}
         {phoneToolbar}
         {artworkPanel}
+        {devToolsPanel}
       </View>
     );
   }
@@ -268,6 +286,7 @@ export function StandScreen() {
       )}
       {phoneToolbar}
       {artworkPanel}
+      {devToolsPanel}
     </View>
   );
 }

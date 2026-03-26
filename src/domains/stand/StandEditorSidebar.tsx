@@ -41,6 +41,8 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
     lampPlacementMode,
     setLampPlacementMode,
     removeSelectedLamp,
+    devToolsVisible,
+    toggleDevTools,
     selectedFairId,
     selectFair,
     saveCurrentConfig,
@@ -222,6 +224,15 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
               <Text style={styles.deleteButtonText}>Verwijder lamp</Text>
             </Pressable>
           )}
+
+          <Pressable
+            style={[styles.artworkToggle, devToolsVisible && styles.artworkToggleActive]}
+            onPress={toggleDevTools}
+          >
+            <Text style={styles.artworkToggleText}>
+              {devToolsVisible ? 'Dev Tools verbergen' : 'Dev Tools'}
+            </Text>
+          </Pressable>
 
           {snapSuggestion && (
             <>

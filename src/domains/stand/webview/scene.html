@@ -95,6 +95,15 @@
       if (data.type === 'setLampTarget' && data.lampId) {
         setLampTarget(data.lampId, data.target);
       }
+      if (data.type === 'setLampProperty' && data.lampId) {
+        setLampProperty(data.lampId, data.property, data.value);
+      }
+      if (data.type === 'setSceneProperty') {
+        setSceneProperty(data.property, data.value);
+      }
+      if (data.type === 'toggleLampHelper' && data.lampId) {
+        toggleLampHelper(data.lampId, data.visible);
+      }
     }
 
     document.addEventListener('message', handleAppMessage);
@@ -855,6 +864,12 @@
     function removeLamp(lampId) {
       var entry = placedLamps[lampId];
       if (!entry) return;
+      // Cleanup helper if exists
+      if (lampHelpers[lampId]) {
+        if (lampHelpers[lampId].material) lampHelpers[lampId].material.dispose();
+        lampHelpers[lampId].dispose();
+        delete lampHelpers[lampId];
+      }
       entry.light.dispose();
       if (entry.targetMesh.material) entry.targetMesh.material.dispose();
       entry.targetMesh.dispose();
@@ -887,11 +902,98 @@
         placedLamps[selectedLampId].targetMesh.isVisible = false;
       }
       selectedLampId = lampId;
-      // Show target for selected lamp
+      // Show target for selected lamp + send runtime state
       if (lampId && placedLamps[lampId]) {
         placedLamps[lampId].targetMesh.isVisible = true;
+        var light = placedLamps[lampId].light;
+        sendToApp({
+          type: 'lampRuntimeState',
+          lampId: lampId,
+          intensity: light.intensity,
+          angle: light.angle,
+          exponent: light.exponent,
+          range: light.range,
+          helperVisible: !!lampHelpers[lampId],
+        });
       }
       sendToApp({ type: 'lampSelected', lampId: lampId });
+    }
+
+    // --- Dev tools: lamp property tuning ---
+    var lampHelpers = {}; // lampId -> helper mesh
+
+    function setLampProperty(lampId, property, value) {
+      var entry = placedLamps[lampId];
+      if (!entry || !entry.light) return;
+      switch (property) {
+        case 'intensity': entry.light.intensity = value; break;
+        case 'angle':
+          entry.light.angle = value;
+          // Recreate helper if visible to match new angle
+          if (lampHelpers[lampId]) {
+            toggleLampHelper(lampId, false);
+            toggleLampHelper(lampId, true);
+          }
+          break;
+        case 'innerAngle': entry.light.innerAngle = value; break;
+        case 'exponent': entry.light.exponent = value; break;
+        case 'range': entry.light.range = value; break;
+        case 'diffuseR': entry.light.diffuse.r = value; break;
+        case 'diffuseG': entry.light.diffuse.g = value; break;
+        case 'diffuseB': entry.light.diffuse.b = value; break;
+      }
+    }
+
+    function setSceneProperty(property, value) {
+      if (!scene) return;
+      switch (property) {
+        case 'ambientR': scene.ambientColor.r = value; break;
+        case 'ambientG': scene.ambientColor.g = value; break;
+        case 'ambientB': scene.ambientColor.b = value; break;
+        case 'environmentIntensity': scene.environmentIntensity = value; break;
+      }
+    }
+
+    function toggleLampHelper(lampId, visible) {
+      var entry = placedLamps[lampId];
+      if (!entry) return;
+      if (visible) {
+        if (!lampHelpers[lampId]) {
+          // Create cone helper showing light direction toward target
+          var targetPos = entry.targetMesh.position;
+          var lampPos = entry.mesh.position;
+          var dist = BABYLON.Vector3.Distance(lampPos, targetPos);
+          var coneRadius = Math.tan(entry.light.angle) * dist;
+
+          var helper = BABYLON.MeshBuilder.CreateCylinder('lampHelper_' + lampId, {
+            diameterTop: 0,
+            diameterBottom: coneRadius * 2,
+            height: dist,
+          }, scene);
+          var helperMat = new BABYLON.StandardMaterial('lampHelperMat_' + lampId, scene);
+          helperMat.diffuseColor = new BABYLON.Color3(1, 1, 0);
+          helperMat.alpha = 0.15;
+          helperMat.wireframe = true;
+          helper.material = helperMat;
+          helper.parent = entry.mesh;
+          // Position at midpoint between lamp and target (in lamp-local space)
+          var dx = targetPos.x - lampPos.x;
+          var dy = targetPos.y - lampPos.y;
+          var dz = targetPos.z - lampPos.z;
+          helper.position = new BABYLON.Vector3(dx / 2, dy / 2, dz / 2);
+          // Orient toward target
+          helper.lookAt(new BABYLON.Vector3(dx, dy, dz));
+          helper.rotation.x += Math.PI / 2; // cylinder default is Y-up
+          helper.isPickable = false;
+          lampHelpers[lampId] = helper;
+        }
+      } else {
+        if (lampHelpers[lampId]) {
+          if (lampHelpers[lampId].material) lampHelpers[lampId].material.dispose();
+          lampHelpers[lampId].dispose();
+          delete lampHelpers[lampId];
+        }
+      }
     }
 
     // --- Wall snapping ---
