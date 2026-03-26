@@ -216,6 +216,7 @@
       }
       createLabel(wallId);
       updateDistanceLabels(); // wall resize may change artwork-to-edge distances
+      updateAllLampReceiversOnWall(wallId); // wall mesh rebuilt, refresh receiver refs
 
       if (selectedWallId === wallId && gizmoManager) {
         gizmoManager.attachToMesh(mesh);
@@ -529,6 +530,7 @@
       });
 
       checkArtworkOverlaps(wallId);
+      updateAllLampReceiversOnWall(wallId);
     }
 
     function removeArtwork(artworkId) {
@@ -553,6 +555,7 @@
         clearDistanceLabels();
       }
       checkArtworkOverlaps(removedWallId);
+      updateAllLampReceiversOnWall(removedWallId);
     }
 
     function setArtworkPosition(artworkId, localPosition) {
@@ -735,6 +738,39 @@
     var LAMP_OFFSET_Y = 0.35; // 35cm above artwork top
     var LAMP_OFFSET_Z = 0.40; // 40cm from wall surface
 
+    function updateLampReceivers(lampId, wallId, light) {
+      if (!light) {
+        var entry = placedLamps[lampId];
+        if (!entry) return;
+        light = entry.light;
+        wallId = entry.wallId;
+      }
+      var receivers = [];
+      // Add wall mesh
+      var wallEntry = walls[wallId];
+      if (wallEntry) receivers.push(wallEntry.mesh);
+      // Add artwork meshes on this wall (box + front plane children)
+      for (var artId in placedArtworks) {
+        var art = placedArtworks[artId];
+        if (art.wallId === wallId) {
+          receivers.push(art.mesh);
+          var children = art.mesh.getChildMeshes();
+          for (var ci = 0; ci < children.length; ci++) {
+            receivers.push(children[ci]);
+          }
+        }
+      }
+      light.includedOnlyMeshes = receivers;
+    }
+
+    function updateAllLampReceiversOnWall(wallId) {
+      for (var lampId in placedLamps) {
+        if (placedLamps[lampId].wallId === wallId) {
+          updateLampReceivers(lampId, wallId, null);
+        }
+      }
+    }
+
     function addLamp(lamp) {
       if (placedLamps[lamp.id]) return;
 
@@ -815,6 +851,9 @@
       );
       light.intensity = 2.0;
       light.diffuse = new BABYLON.Color3(1, 0.97, 0.92);
+
+      // Restrict light to wall + artworks on this wall only
+      updateLampReceivers(lamp.id, lamp.wallId, light);
 
       // Rail drag for lamp (1D along wall X-axis, fixed Y and Z)
       var railDrag = new BABYLON.PointerDragBehavior({
