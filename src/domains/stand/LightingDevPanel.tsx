@@ -40,15 +40,16 @@ const COLOR_PRESETS = [
 /** Hydrated from scene runtime state via key-based remount */
 function LampControls({ lampId, initial }: {
   lampId: string;
-  initial: { intensity: number; angle: number; exponent: number; range: number; helperVisible: boolean };
+  initial: { intensity: number; angle: number; innerAngle: number; exponent: number; range: number; diffuseR: number; diffuseG: number; diffuseB: number; helperVisible: boolean };
 }) {
-  const { sendMessage } = useStandEditor();
+  const { sendMessage, setLampTypeDefault, applyDefaultsToAllLamps } = useStandEditor();
   const [intensity, setIntensity] = useState(initial.intensity);
   const [angle, setAngle] = useState(initial.angle);
-  const [innerAngle, setInnerAngle] = useState(0);
+  const [innerAngle, setInnerAngle] = useState(initial.innerAngle ?? 0);
   const [exponent, setExponent] = useState(initial.exponent);
   const [range, setRange] = useState(initial.range);
   const [helperVisible, setHelperVisible] = useState(initial.helperVisible);
+  const [diffuse, setDiffuse] = useState({ r: initial.diffuseR ?? 1, g: initial.diffuseG ?? 0.97, b: initial.diffuseB ?? 0.92 });
 
   const updateProp = (prop: string, value: number) => {
     sendMessage({ type: 'setLampProperty', lampId, property: prop, value });
@@ -70,6 +71,7 @@ function LampControls({ lampId, initial }: {
   };
 
   const applyColor = (r: number, g: number, b: number) => {
+    setDiffuse({ r, g, b });
     sendMessage({ type: 'setLampProperty', lampId, property: 'diffuseR', value: r });
     sendMessage({ type: 'setLampProperty', lampId, property: 'diffuseG', value: g });
     sendMessage({ type: 'setLampProperty', lampId, property: 'diffuseB', value: b });
@@ -118,6 +120,19 @@ function LampControls({ lampId, initial }: {
       <Pressable style={styles.resetButton} onPress={reset}>
         <Text style={styles.resetText}>Reset defaults</Text>
       </Pressable>
+
+      <Text style={styles.sectionLabel}>Type defaults</Text>
+      <Pressable style={styles.defaultButton} onPress={() => {
+        setLampTypeDefault('spot', {
+          intensity, angle, innerAngle, exponent, range,
+          diffuseR: diffuse.r, diffuseG: diffuse.g, diffuseB: diffuse.b,
+        });
+      }}>
+        <Text style={styles.defaultButtonText}>Maak default voor spotlights</Text>
+      </Pressable>
+      <Pressable style={styles.applyAllButton} onPress={() => applyDefaultsToAllLamps('spot')}>
+        <Text style={styles.applyAllText}>Apply to all spotlights</Text>
+      </Pressable>
     </>
   );
 }
@@ -160,5 +175,9 @@ const styles = StyleSheet.create({
   toggleLabel: { color: INACTIVE_TINT, fontSize: 12 },
   resetButton: { backgroundColor: 'rgba(255,253,249,0.08)', paddingVertical: 8, borderRadius: 8, alignItems: 'center', marginTop: 8 },
   resetText: { color: INACTIVE_TINT, fontSize: 12, fontWeight: '600' },
+  defaultButton: { backgroundColor: ACCENT, paddingVertical: 8, borderRadius: 8, alignItems: 'center' as const, marginTop: 4 },
+  defaultButtonText: { color: '#fff', fontSize: 12, fontWeight: '600' as const },
+  applyAllButton: { backgroundColor: 'rgba(255,253,249,0.08)', paddingVertical: 8, borderRadius: 8, alignItems: 'center' as const, marginTop: 4 },
+  applyAllText: { color: INACTIVE_TINT, fontSize: 12, fontWeight: '600' as const },
   hintText: { color: 'rgba(255,253,249,0.3)', fontSize: 13, fontStyle: 'italic', textAlign: 'center', paddingVertical: 40 },
 });

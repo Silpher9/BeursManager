@@ -128,8 +128,12 @@ export function StandScreen() {
       setLampRuntimeState({
         intensity: data.intensity,
         angle: data.angle,
+        innerAngle: data.innerAngle,
         exponent: data.exponent,
         range: data.range,
+        diffuseR: data.diffuseR,
+        diffuseG: data.diffuseG,
+        diffuseB: data.diffuseB,
         helperVisible: data.helperVisible,
       });
     }

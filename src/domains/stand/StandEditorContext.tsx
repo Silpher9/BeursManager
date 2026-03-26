@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import type { WebView } from 'react-native-webview';
 
-import type { AppToWebViewMessage, EditorCommand, EditorMode, PlacedArtwork, PlacedLamp, SnapSuggestion, Vec3, WallConfig } from './types';
+import type { AppToWebViewMessage, EditorCommand, EditorMode, LampDefaults, PlacedArtwork, PlacedLamp, SnapSuggestion, Vec3, WallConfig } from './types';
 import { type StandDocument, saveStandConfig, loadStandConfig } from './repository';
 
 type StandEditorState = {
@@ -42,8 +42,11 @@ type StandEditorState = {
   addLampForArtwork: (artworkId: string) => void;
   removeSelectedLamp: () => void;
   handleLampMoved: (lampId: string, oldPos: Vec3, newPos: Vec3) => void;
-  lampRuntimeState: { intensity: number; angle: number; exponent: number; range: number; helperVisible: boolean } | null;
-  setLampRuntimeState: (state: { intensity: number; angle: number; exponent: number; range: number; helperVisible: boolean } | null) => void;
+  lampRuntimeState: { intensity: number; angle: number; innerAngle: number; exponent: number; range: number; diffuseR: number; diffuseG: number; diffuseB: number; helperVisible: boolean } | null;
+  setLampRuntimeState: (state: { intensity: number; angle: number; innerAngle: number; exponent: number; range: number; diffuseR: number; diffuseG: number; diffuseB: number; helperVisible: boolean } | null) => void;
+  lampTypeDefaults: Record<string, LampDefaults>;
+  setLampTypeDefault: (lampType: string, defaults: LampDefaults) => void;
+  applyDefaultsToAllLamps: (lampType: string) => void;
   handleLampTargetMoved: (lampId: string, oldTarget: Vec3, newTarget: Vec3) => void;
   toggleEditorMode: () => void;
   setSnapSuggestion: (suggestion: SnapSuggestion | null) => void;
@@ -95,7 +98,8 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
   const [selectedArtworkId, setSelectedArtworkId] = useState<string | null>(null);
   const [placedLamps, setPlacedLamps] = useState<PlacedLamp[]>([]);
   const [selectedLampId, setSelectedLampId] = useState<string | null>(null);
-  const [lampRuntimeState, setLampRuntimeState] = useState<{ intensity: number; angle: number; exponent: number; range: number; helperVisible: boolean } | null>(null);
+  const [lampRuntimeState, setLampRuntimeState] = useState<{ intensity: number; angle: number; innerAngle: number; exponent: number; range: number; diffuseR: number; diffuseG: number; diffuseB: number; helperVisible: boolean } | null>(null);
+  const [lampTypeDefaults, setLampTypeDefaults] = useState<Record<string, LampDefaults>>({});
   // Track last known transform per wall (updated by wallMoved)
   const wallTransforms = useRef<Record<string, { position: Vec3; rotation: Vec3 }>>({});
 
@@ -503,10 +507,17 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       },
     };
     sendMessage({ type: 'addLamp', lamp });
+    // Apply type defaults if available
+    const defaults = lampTypeDefaults[lamp.type];
+    if (defaults) {
+      for (const [prop, val] of Object.entries(defaults)) {
+        sendMessage({ type: 'setLampProperty', lampId: lamp.id, property: prop, value: val as number });
+      }
+    }
     setPlacedLamps(prev => [...prev, lamp]);
     pushCommand({ kind: 'addLamp', lamp });
     setLampPlacementMode(false);
-  }, [placedArtworks, placedLamps, walls, sendMessage, pushCommand]);
+  }, [placedArtworks, placedLamps, walls, lampTypeDefaults, sendMessage, pushCommand]);
 
   const removeSelectedLamp = useCallback(() => {
     if (!selectedLampId) return;
@@ -527,6 +538,27 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     setPlacedLamps(prev => prev.map(l => l.id === lampId ? { ...l, target: newTarget } : l));
     pushCommand({ kind: 'moveLampTarget', lampId, oldTarget, newTarget });
   }, [pushCommand]);
+
+  const setLampTypeDefault = useCallback((lampType: string, defaults: LampDefaults) => {
+    setLampTypeDefaults(prev => ({ ...prev, [lampType]: defaults }));
+    setHasUnsavedChanges(true);
+  }, []);
+
+  const applyDefaultsToAllLamps = useCallback((lampType: string) => {
+    const defaults = lampTypeDefaults[lampType];
+    if (!defaults) return;
+    placedLamps.filter(l => l.type === lampType).forEach(l => {
+      sendMessage({ type: 'setLampProperty', lampId: l.id, property: 'intensity', value: defaults.intensity });
+      sendMessage({ type: 'setLampProperty', lampId: l.id, property: 'angle', value: defaults.angle });
+      sendMessage({ type: 'setLampProperty', lampId: l.id, property: 'innerAngle', value: defaults.innerAngle });
+      sendMessage({ type: 'setLampProperty', lampId: l.id, property: 'exponent', value: defaults.exponent });
+      sendMessage({ type: 'setLampProperty', lampId: l.id, property: 'range', value: defaults.range });
+      sendMessage({ type: 'setLampProperty', lampId: l.id, property: 'diffuseR', value: defaults.diffuseR });
+      sendMessage({ type: 'setLampProperty', lampId: l.id, property: 'diffuseG', value: defaults.diffuseG });
+      sendMessage({ type: 'setLampProperty', lampId: l.id, property: 'diffuseB', value: defaults.diffuseB });
+    });
+    setHasUnsavedChanges(true);
+  }, [lampTypeDefaults, placedLamps, sendMessage]);
 
   const toggleDevTools = useCallback(() => {
     setDevToolsVisible(prev => !prev);
@@ -555,6 +587,7 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     setWalls([]);
     setPlacedArtworks([]);
     setPlacedLamps([]);
+    setLampTypeDefaults({});
     setPendingArtworkId(null);
     setSelectedArtworkId(null);
     setSelectedLampId(null);
@@ -617,6 +650,22 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       }, 0);
       lampCounter = maxLampNum;
     }
+
+    // Load lamp type defaults
+    if (config.lampTypeDefaults) {
+      setLampTypeDefaults(config.lampTypeDefaults);
+      // Apply defaults to loaded lamps
+      if (config.lamps) {
+        for (const lamp of config.lamps) {
+          const defaults = config.lampTypeDefaults[lamp.type];
+          if (defaults) {
+            for (const [prop, val] of Object.entries(defaults)) {
+              sendMessage({ type: 'setLampProperty', lampId: lamp.id, property: prop, value: val as number });
+            }
+          }
+        }
+      }
+    }
   }, [db, walls, sendMessage]);
 
   const saveCurrentConfig = useCallback(async () => {
@@ -630,10 +679,11 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       })),
       artworks: placedArtworks,
       lamps: placedLamps,
+      lampTypeDefaults: Object.keys(lampTypeDefaults).length > 0 ? lampTypeDefaults : undefined,
     };
     await saveStandConfig(db, selectedFairId, doc);
     setHasUnsavedChanges(false);
-  }, [db, selectedFairId, walls, placedArtworks, placedLamps]);
+  }, [db, selectedFairId, walls, placedArtworks, placedLamps, lampTypeDefaults]);
 
   const registerWebView = useCallback((ref: WebView | null) => {
     webViewRef.current = ref;
@@ -687,6 +737,9 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       handleLampTargetMoved,
       lampRuntimeState,
       setLampRuntimeState,
+      lampTypeDefaults,
+      setLampTypeDefault,
+      applyDefaultsToAllLamps,
       addWall,
       removeSelectedWall,
       updateWallDimension,

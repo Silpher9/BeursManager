@@ -52,7 +52,7 @@ export type WebViewToAppMessage =
   | { type: 'lampSelected'; lampId: string | null }
   | { type: 'lampMoved'; lampId: string; oldPosition: Vec3; newPosition: Vec3 }
   | { type: 'lampTargetMoved'; lampId: string; oldTarget: Vec3; newTarget: Vec3 }
-  | { type: 'lampRuntimeState'; lampId: string; intensity: number; angle: number; exponent: number; range: number; helperVisible: boolean };
+  | { type: 'lampRuntimeState'; lampId: string; intensity: number; angle: number; innerAngle: number; exponent: number; range: number; diffuseR: number; diffuseG: number; diffuseB: number; helperVisible: boolean };
 
 // --- Placed Artwork ---
 
@@ -75,6 +75,19 @@ export type PlacedLamp = {
   wallId: string;
   position: Vec3;     // lamp position (wall-local, on rail above artwork)
   target: Vec3;       // target position (wall-local, on wall surface)
+};
+
+// --- Lamp Type Defaults ---
+
+export type LampDefaults = {
+  intensity: number;
+  angle: number;
+  innerAngle: number;
+  exponent: number;
+  range: number;
+  diffuseR: number;
+  diffuseG: number;
+  diffuseB: number;
 };
 
 // --- Command / History ---

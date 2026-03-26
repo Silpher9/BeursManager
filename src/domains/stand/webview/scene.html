@@ -120,6 +120,8 @@
       var mat = new BABYLON.StandardMaterial('wallMat_' + id, scene);
       mat.diffuseColor = new BABYLON.Color3(0.95, 0.93, 0.88);
       mat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+      mat.backFaceCulling = false; // illuminate both sides of wall
+      mat.twoSidedLighting = true;
       return mat;
     }
 
@@ -959,8 +961,12 @@
           lampId: lampId,
           intensity: light.intensity,
           angle: light.angle,
+          innerAngle: light.innerAngle || 0,
           exponent: light.exponent,
           range: light.range,
+          diffuseR: light.diffuse.r,
+          diffuseG: light.diffuse.g,
+          diffuseB: light.diffuse.b,
           helperVisible: !!lampHelpers[lampId],
         });
       }

@@ -1,11 +1,12 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { PlacedArtwork, PlacedLamp, Vec3, WallConfig } from './types';
+import type { LampDefaults, PlacedArtwork, PlacedLamp, Vec3, WallConfig } from './types';
 
 export type StandDocument = {
   walls: Array<WallConfig & { position: Vec3; rotation: Vec3 }>;
   artworks?: PlacedArtwork[];
   lamps?: PlacedLamp[];
+  lampTypeDefaults?: Record<string, LampDefaults>;
 };
 
 export async function saveStandConfig(
