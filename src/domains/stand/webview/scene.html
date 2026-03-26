@@ -937,7 +937,7 @@
       switch (property) {
         case 'intensity': entry.light.intensity = value; break;
         case 'angle':
-          entry.light.angle = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, value));
+          entry.light.angle = Math.max(0.1, Math.min(Math.PI - 0.1, value));
           // Recreate helper if visible to match new angle
           if (lampHelpers[lampId]) {
             toggleLampHelper(lampId, false);

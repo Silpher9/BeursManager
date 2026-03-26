@@ -56,7 +56,7 @@ function LampControls({ lampId, initial }: {
 
   const CLAMPS: Record<string, [number, number]> = {
     intensity: [0, 5],
-    angle: [0.1, Math.PI / 2 - 0.05],
+    angle: [0.1, Math.PI - 0.1],
     innerAngle: [0, Math.PI / 2 - 0.1],
     exponent: [0.1, 10],
     range: [0.5, 50],
