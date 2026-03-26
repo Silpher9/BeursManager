@@ -91,6 +91,8 @@ De Stand tab draait BabylonJS in een WebView (`src/domains/stand/webview/scene.h
 
 **Waarom:** Vrije 3D-lampplaatsing leidt tot UX-frustratie door gebrek aan diepte-perceptie op een 2D-scherm. Het artwork-first model geeft direct een goed verlichtingsresultaat met minimale gebruikersinput.
 
+**Lamp transform-model:** Lamp mesh en target mesh zijn **wall-local** (children van wand-mesh). De BabylonJS `SpotLight` is een afgeleide **world-space** representatie die elke frame gesynchroniseerd wordt via `updateLampLight()`. `lampMoved` en `lampTargetMoved` zijn bewust aparte bridge-contracten: lamp-body beweegt over de rail (1D), target beweegt over het wandvlak (2D). Beide updaten alleen hun eigen veld in `PlacedLamp` (`position` resp. `target`).
+
 ## Externe services
 
 - `@fal-ai/client` — AI beeldgeneratie (key via `EXPO_PUBLIC_FAL_KEY`)
