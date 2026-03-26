@@ -40,6 +40,7 @@ type StandEditorState = {
   addLampForArtwork: (artworkId: string) => void;
   removeSelectedLamp: () => void;
   handleLampMoved: (lampId: string, oldPos: Vec3, newPos: Vec3) => void;
+  handleLampTargetMoved: (lampId: string, oldTarget: Vec3, newTarget: Vec3) => void;
   toggleEditorMode: () => void;
   setSnapSuggestion: (suggestion: SnapSuggestion | null) => void;
   confirmSnapSuggestion: () => void;
@@ -248,6 +249,10 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
           sendMessage({ type: 'setLampPosition', lampId: cmd.lampId, position: cmd.oldPosition });
           setPlacedLamps(l => l.map(x => x.id === cmd.lampId ? { ...x, position: cmd.oldPosition } : x));
           break;
+        case 'moveLampTarget':
+          sendMessage({ type: 'setLampTarget', lampId: cmd.lampId, target: cmd.oldTarget });
+          setPlacedLamps(l => l.map(x => x.id === cmd.lampId ? { ...x, target: cmd.oldTarget } : x));
+          break;
       }
 
       setRedoStack(r => [...r, cmd]);
@@ -303,6 +308,10 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
         case 'moveLamp':
           sendMessage({ type: 'setLampPosition', lampId: cmd.lampId, position: cmd.newPosition });
           setPlacedLamps(l => l.map(x => x.id === cmd.lampId ? { ...x, position: cmd.newPosition } : x));
+          break;
+        case 'moveLampTarget':
+          sendMessage({ type: 'setLampTarget', lampId: cmd.lampId, target: cmd.newTarget });
+          setPlacedLamps(l => l.map(x => x.id === cmd.lampId ? { ...x, target: cmd.newTarget } : x));
           break;
       }
 
@@ -508,6 +517,11 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     pushCommand({ kind: 'moveLamp', lampId, oldPosition: oldPos, newPosition: newPos });
   }, [pushCommand]);
 
+  const handleLampTargetMoved = useCallback((lampId: string, oldTarget: Vec3, newTarget: Vec3) => {
+    setPlacedLamps(prev => prev.map(l => l.id === lampId ? { ...l, target: newTarget } : l));
+    pushCommand({ kind: 'moveLampTarget', lampId, oldTarget, newTarget });
+  }, [pushCommand]);
+
   const toggleArtworkPanel = useCallback(() => {
     setArtworkPanelVisible(prev => !prev);
   }, []);
@@ -658,6 +672,7 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       addLampForArtwork,
       removeSelectedLamp,
       handleLampMoved,
+      handleLampTargetMoved,
       addWall,
       removeSelectedWall,
       updateWallDimension,

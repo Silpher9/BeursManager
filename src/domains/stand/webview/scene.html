@@ -322,6 +322,9 @@
         if (lampEntry.dragBehavior) {
           lampEntry.dragBehavior.enabled = (mode === 'build');
         }
+        if (lampEntry.targetDragBehavior) {
+          lampEntry.targetDragBehavior.enabled = (mode === 'build');
+        }
       }
       // Enable/disable artwork drag behaviors
       var artIds = Object.keys(placedArtworks);
@@ -715,7 +718,7 @@
 
       // Target marker (small sphere on wall surface)
       var targetMesh = BABYLON.MeshBuilder.CreateSphere('lampTarget_' + lamp.id, {
-        diameter: 0.04,
+        diameter: 0.12,
       }, scene);
       targetMesh.parent = wallEntry.mesh;
       targetMesh.position = new BABYLON.Vector3(lamp.target.x, lamp.target.y, lamp.target.z);
@@ -724,7 +727,40 @@
       targetMat.emissiveColor = new BABYLON.Color3(1, 0.8, 0);
       targetMesh.material = targetMat;
       targetMesh.isVisible = false; // only show when lamp selected
+      targetMesh.isPickable = true; // pickable even when not visible (shown on select)
       targetMesh.metadata = { lampTargetId: lamp.id };
+
+      // Target drag behavior (2D on wall plane, local X/Y)
+      var targetDrag = new BABYLON.PointerDragBehavior({
+        dragPlaneNormal: new BABYLON.Vector3(0, 0, 1), // wall normal (local Z)
+      });
+      targetDrag.useObjectOrientationForDragging = true;
+      targetDrag.moveAttached = true;
+      targetDrag.enabled = (editorMode === 'build');
+      var targetDragStartPos = null;
+      targetDrag.onDragStartObservable.add(function () {
+        targetDragStartPos = { x: targetMesh.position.x, y: targetMesh.position.y, z: targetMesh.position.z };
+      });
+      targetDrag.onDragObservable.add(function () {
+        // Keep Z fixed on wall surface
+        if (targetDragStartPos) {
+          targetMesh.position.z = targetDragStartPos.z;
+        }
+        // Constrain to wall bounds
+        var wallHW = cmToM(wallEntry.config.width) / 2;
+        var wallHH = cmToM(wallEntry.config.height) / 2;
+        targetMesh.position.x = Math.max(-wallHW, Math.min(wallHW, targetMesh.position.x));
+        targetMesh.position.y = Math.max(-wallHH, Math.min(wallHH, targetMesh.position.y));
+      });
+      targetDrag.onDragEndObservable.add(function () {
+        if (targetDragStartPos) {
+          targetMesh.position.z = targetDragStartPos.z;
+          var newTarget = { x: targetMesh.position.x, y: targetMesh.position.y, z: targetMesh.position.z };
+          sendToApp({ type: 'lampTargetMoved', lampId: lamp.id, oldTarget: targetDragStartPos, newTarget: newTarget });
+          targetDragStartPos = null;
+        }
+      });
+      targetMesh.addBehavior(targetDrag);
 
       // SpotLight — world space, updated from wall-local positions
       var worldLampPos = BABYLON.Vector3.TransformCoordinates(mesh.position, wallEntry.mesh.getWorldMatrix());
@@ -773,7 +809,7 @@
       });
       mesh.addBehavior(railDrag);
 
-      placedLamps[lamp.id] = { mesh: mesh, light: light, targetMesh: targetMesh, wallId: lamp.wallId, dragBehavior: railDrag };
+      placedLamps[lamp.id] = { mesh: mesh, light: light, targetMesh: targetMesh, wallId: lamp.wallId, dragBehavior: railDrag, targetDragBehavior: targetDrag };
     }
 
     function updateLampLight(lampId) {
@@ -1134,9 +1170,19 @@
           var pickResult = pointerInfo.pickInfo;
           if (pickResult && pickResult.hit && pickResult.pickedMesh) {
             var meta = pickResult.pickedMesh.metadata;
+            // Lamp target click
+            if (meta && meta.lampTargetId) {
+              selectLamp(meta.lampTargetId);
+              return;
+            }
             // Lamp click
             if (meta && meta.lampId) {
               selectLamp(meta.lampId);
+              return;
+            }
+            // In lamp focus mode: ignore artwork/wall clicks
+            if (selectedLampId) {
+              selectLamp(null); // deselect lamp on any non-lamp click
               return;
             }
             // Artwork click
@@ -1168,13 +1214,17 @@
             clearDistanceLabels();
           }
           if (selectedLampId) {
-            selectedLampId = null;
-            sendToApp({ type: 'lampSelected', lampId: null });
+            selectLamp(null);
           }
+          // Lamp deselect is handled above in lamp-focus mode check
         });
 
         // Render loop
         engine.runRenderLoop(function () {
+          // Sync lamp lights with wall transforms (lights are world-space)
+          for (var lampId in placedLamps) {
+            updateLampLight(lampId);
+          }
           scene.render();
         });
 

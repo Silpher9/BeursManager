@@ -47,7 +47,8 @@ export type WebViewToAppMessage =
   | { type: 'artworkPlaced'; artworkId: string; wallId: string; localPosition: Vec3 }
   | { type: 'artworkMoved'; artworkId: string; oldLocalPosition: Vec3; newLocalPosition: Vec3 }
   | { type: 'lampSelected'; lampId: string | null }
-  | { type: 'lampMoved'; lampId: string; oldPosition: Vec3; newPosition: Vec3 };
+  | { type: 'lampMoved'; lampId: string; oldPosition: Vec3; newPosition: Vec3 }
+  | { type: 'lampTargetMoved'; lampId: string; oldTarget: Vec3; newTarget: Vec3 };
 
 // --- Placed Artwork ---
 
@@ -85,4 +86,5 @@ export type EditorCommand =
   | { kind: 'moveArtwork'; artworkId: string; oldPosition: Vec3; newPosition: Vec3 }
   | { kind: 'addLamp'; lamp: PlacedLamp }
   | { kind: 'removeLamp'; lamp: PlacedLamp }
-  | { kind: 'moveLamp'; lampId: string; oldPosition: Vec3; newPosition: Vec3 };
+  | { kind: 'moveLamp'; lampId: string; oldPosition: Vec3; newPosition: Vec3 }
+  | { kind: 'moveLampTarget'; lampId: string; oldTarget: Vec3; newTarget: Vec3 };

@@ -25,7 +25,7 @@ export function StandScreen() {
   const db = useSQLiteContext();
   const [fairs, setFairs] = useState<FairListItem[]>([]);
 
-  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedFairId, selectedWallId, artworkPanelVisible, placedArtworks, placedLamps, lampPlacementMode, addWall, removeSelectedWall, selectFair, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, handleArtworkPlaced, handleArtworkMoved, setSelectedArtworkId, setSelectedLampId, addLampForArtwork, handleLampMoved, replayTransforms, registerWebView, registerIframe } = useStandEditor();
+  const { walls, sceneReady, snapEnabled, snapDegrees, editorMode, selectedFairId, selectedWallId, artworkPanelVisible, placedArtworks, placedLamps, lampPlacementMode, addWall, removeSelectedWall, selectFair, setSceneReady, sendMessage, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, handleArtworkPlaced, handleArtworkMoved, setSelectedArtworkId, setSelectedLampId, addLampForArtwork, handleLampMoved, handleLampTargetMoved, replayTransforms, registerWebView, registerIframe } = useStandEditor();
 
   // Fetch fairs for selection gate
   useEffect(() => {
@@ -125,7 +125,10 @@ export function StandScreen() {
     if (data.type === 'lampMoved') {
       handleLampMoved(data.lampId, data.oldPosition, data.newPosition);
     }
-  }, [sendMessage, setSceneReady, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, handleArtworkPlaced, handleArtworkMoved, setSelectedArtworkId, setSelectedLampId, lampPlacementMode, addLampForArtwork, handleLampMoved, replayState]);
+    if (data.type === 'lampTargetMoved') {
+      handleLampTargetMoved(data.lampId, data.oldTarget, data.newTarget);
+    }
+  }, [sendMessage, setSceneReady, setSelectedWallId, setSnapSuggestion, handleWallMoved, handleWallTapped, handleArtworkPlaced, handleArtworkMoved, setSelectedArtworkId, setSelectedLampId, lampPlacementMode, addLampForArtwork, handleLampMoved, handleLampTargetMoved, replayState]);
 
   // Web: luister naar postMessage van iframe
   useEffect(() => {
