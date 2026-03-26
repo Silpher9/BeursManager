@@ -53,9 +53,18 @@ function LampControls({ lampId, initial }: {
     sendMessage({ type: 'setLampProperty', lampId, property: prop, value });
   };
 
+  const CLAMPS: Record<string, [number, number]> = {
+    intensity: [0, 5],
+    angle: [0.1, Math.PI / 2 - 0.05],
+    exponent: [0.1, 10],
+    range: [0.5, 50],
+  };
+
   const setVal = (setter: (v: number) => void, prop: string) => (v: number) => {
-    setter(v);
-    updateProp(prop, v);
+    const clamp = CLAMPS[prop];
+    const clamped = clamp ? Math.max(clamp[0], Math.min(clamp[1], v)) : v;
+    setter(clamped);
+    updateProp(prop, clamped);
   };
 
   const applyColor = (r: number, g: number, b: number) => {

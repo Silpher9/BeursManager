@@ -796,6 +796,7 @@
           sendToApp({ type: 'lampTargetMoved', lampId: lamp.id, oldTarget: targetDragStartPos, newTarget: newTarget });
           targetDragStartPos = null;
         }
+        rebuildLampHelper(lamp.id);
       });
       targetMesh.addBehavior(targetDrag);
 
@@ -843,6 +844,7 @@
           sendToApp({ type: 'lampMoved', lampId: lamp.id, oldPosition: lampDragStartPos, newPosition: newPos });
           lampDragStartPos = null;
         }
+        rebuildLampHelper(lamp.id);
       });
       mesh.addBehavior(railDrag);
 
@@ -859,6 +861,13 @@
       var worldTargetPos = BABYLON.Vector3.TransformCoordinates(entry.targetMesh.position, wm);
       entry.light.position = worldLampPos;
       entry.light.direction = worldTargetPos.subtract(worldLampPos).normalize();
+    }
+
+    function rebuildLampHelper(lampId) {
+      if (lampHelpers[lampId]) {
+        toggleLampHelper(lampId, false);
+        toggleLampHelper(lampId, true);
+      }
     }
 
     function removeLamp(lampId) {
@@ -928,7 +937,7 @@
       switch (property) {
         case 'intensity': entry.light.intensity = value; break;
         case 'angle':
-          entry.light.angle = value;
+          entry.light.angle = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, value));
           // Recreate helper if visible to match new angle
           if (lampHelpers[lampId]) {
             toggleLampHelper(lampId, false);
@@ -937,7 +946,7 @@
           break;
         case 'innerAngle': entry.light.innerAngle = value; break;
         case 'exponent': entry.light.exponent = value; break;
-        case 'range': entry.light.range = value; break;
+        case 'range': entry.light.range = Math.max(0.5, Math.min(50, value)); break;
         case 'diffuseR': entry.light.diffuse.r = value; break;
         case 'diffuseG': entry.light.diffuse.g = value; break;
         case 'diffuseB': entry.light.diffuse.b = value; break;
@@ -963,7 +972,7 @@
           var targetPos = entry.targetMesh.position;
           var lampPos = entry.mesh.position;
           var dist = BABYLON.Vector3.Distance(lampPos, targetPos);
-          var coneRadius = Math.tan(entry.light.angle) * dist;
+          var coneRadius = Math.tan(entry.light.angle / 2) * dist;
 
           var helper = BABYLON.MeshBuilder.CreateCylinder('lampHelper_' + lampId, {
             diameterTop: 0,
