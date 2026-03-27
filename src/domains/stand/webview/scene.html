@@ -305,73 +305,89 @@
     }
 
     // --- Editor mode / labels ---
-    function createWallLabel(text, mesh, offsetX, offsetY) {
-      var rect = new BABYLON.GUI.Rectangle();
-      rect.width = '70px';
-      rect.height = '20px';
-      rect.cornerRadius = 4;
-      rect.color = 'transparent';
-      rect.background = 'rgba(58, 46, 34, 0.75)';
-      rect.thickness = 0;
-
-      var tb = new BABYLON.GUI.TextBlock();
-      tb.text = text;
-      tb.color = '#FFFDF9';
-      tb.fontSize = 11;
-      tb.fontWeight = 'bold';
-      rect.addControl(tb);
-
-      guiTexture.addControl(rect);
-      rect.linkWithMesh(mesh);
-      rect.linkOffsetXInPixels = offsetX;
-      rect.linkOffsetYInPixels = offsetY;
-      return { rect: rect, textBlock: tb };
+    function createTextPlane(text, width, height) {
+      var texSize = 256;
+      var plane = BABYLON.MeshBuilder.CreatePlane('labelPlane', { width: width, height: height }, scene);
+      var tex = new BABYLON.DynamicTexture('labelTex', { width: texSize, height: Math.round(texSize * height / width) }, scene, true);
+      var ctx = tex.getContext();
+      ctx.fillStyle = 'rgba(58, 46, 34, 0.75)';
+      ctx.fillRect(0, 0, texSize, texSize);
+      ctx.font = 'bold 48px sans-serif';
+      ctx.fillStyle = '#FFFDF9';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, texSize / 2, Math.round(texSize * height / width) / 2);
+      tex.update();
+      var mat = new BABYLON.StandardMaterial('labelMat', scene);
+      mat.diffuseTexture = tex;
+      mat.diffuseTexture.hasAlpha = true;
+      mat.useAlphaFromDiffuseTexture = true;
+      mat.emissiveColor = new BABYLON.Color3(1, 1, 1);
+      mat.disableLighting = true;
+      mat.backFaceCulling = false;
+      mat.specularColor = new BABYLON.Color3(0, 0, 0);
+      plane.material = mat;
+      plane.isPickable = false;
+      return { plane: plane, tex: tex };
     }
 
     function createLabel(wallId) {
-      if (!guiTexture) return;
       var entry = walls[wallId];
       if (!entry || entry.label) return;
 
-      // Width label at bottom of wall
-      var widthLabel = createWallLabel(entry.config.width + 'cm', entry.mesh, 0, 80);
-      // Height labels at both sides
-      var heightLabelL = createWallLabel(entry.config.height + 'cm', entry.mesh, -120, 0);
-      var heightLabelR = createWallLabel(entry.config.height + 'cm', entry.mesh, 120, 0);
+      var w = cmToM(entry.config.width);
+      var h = cmToM(entry.config.height);
+      var d = cmToM(entry.config.depth);
+      var labelW = 0.4;
+      var labelH = 0.12;
+      var labelZ = d / 2 + 0.01; // just in front of wall surface
 
-      entry.label = [widthLabel.rect, heightLabelL.rect, heightLabelR.rect];
-      entry.labelText = widthLabel.textBlock;
-      entry.heightLabelText = heightLabelL.textBlock;
-      entry.heightLabelTextR = heightLabelR.textBlock;
+      // Width label at top center (above wall, not below — bottom is at ground level)
+      var widthLbl = createTextPlane(entry.config.width + 'cm', labelW, labelH);
+      widthLbl.plane.parent = entry.mesh;
+      widthLbl.plane.position = new BABYLON.Vector3(0, h / 2 + labelH / 2 + 0.02, labelZ);
+
+      // Height label left side (rotated 90°)
+      var heightLblL = createTextPlane(entry.config.height + 'cm', labelW, labelH);
+      heightLblL.plane.parent = entry.mesh;
+      heightLblL.plane.position = new BABYLON.Vector3(-w / 2 - labelH / 2 - 0.02, 0, labelZ);
+      heightLblL.plane.rotation.z = Math.PI / 2;
+
+      // Height label right side (rotated -90°)
+      var heightLblR = createTextPlane(entry.config.height + 'cm', labelW, labelH);
+      heightLblR.plane.parent = entry.mesh;
+      heightLblR.plane.position = new BABYLON.Vector3(w / 2 + labelH / 2 + 0.02, 0, labelZ);
+      heightLblR.plane.rotation.z = -Math.PI / 2;
+
+      entry.label = [widthLbl.plane, heightLblL.plane, heightLblR.plane];
+      entry.labelTextures = [widthLbl.tex, heightLblL.tex, heightLblR.tex];
 
       if (editorMode !== 'build') {
-        rect.isVisible = false;
+        for (var li = 0; li < entry.label.length; li++) {
+          entry.label[li].isVisible = false;
+        }
       }
+
     }
 
     function updateLabel(wallId) {
-      var entry = walls[wallId];
-      if (!entry || !entry.labelText) return;
-      entry.labelText.text = entry.config.width + 'cm';
-      if (entry.heightLabelText) entry.heightLabelText.text = entry.config.height + 'cm';
-      if (entry.heightLabelTextR) entry.heightLabelTextR.text = entry.config.height + 'cm';
+      // Recreate labels with new text (simplest approach for DynamicTexture)
+      removeLabel(wallId);
+      createLabel(wallId);
     }
 
     function removeLabel(wallId) {
       var entry = walls[wallId];
       if (!entry || !entry.label) return;
-      if (Array.isArray(entry.label)) {
-        for (var li = 0; li < entry.label.length; li++) {
-          guiTexture.removeControl(entry.label[li]);
-          entry.label[li].dispose();
+      for (var li = 0; li < entry.label.length; li++) {
+        if (entry.label[li].material) {
+          if (entry.label[li].material.diffuseTexture) entry.label[li].material.diffuseTexture.dispose();
+          entry.label[li].material.dispose();
         }
-      } else {
-        guiTexture.removeControl(entry.label);
-        entry.label.dispose();
+        entry.label[li].dispose();
       }
       entry.label = null;
-      entry.labelText = null;
-      entry.heightLabelText = null;
+      entry.labelTextures = null;
     }
 
     function setEditorMode(mode) {
@@ -407,12 +423,8 @@
       for (var i = 0; i < wallIds.length; i++) {
         var entry = walls[wallIds[i]];
         if (entry.label) {
-          if (Array.isArray(entry.label)) {
-            for (var lj = 0; lj < entry.label.length; lj++) {
-              entry.label[lj].isVisible = (mode === 'build');
-            }
-          } else {
-            entry.label.isVisible = (mode === 'build');
+          for (var lj = 0; lj < entry.label.length; lj++) {
+            entry.label[lj].isVisible = (mode === 'build');
           }
         }
       }
