@@ -37,6 +37,7 @@
     var selectedWallId = null;
     var editorMode = 'build'; // 'build' | 'view'
     var guiTexture = null;
+    var gridPlane = null;
 
     function handleAppMessage(event) {
       var data;
@@ -375,6 +376,8 @@
 
     function setEditorMode(mode) {
       editorMode = mode;
+      // Toggle grid visibility
+      if (gridPlane) gridPlane.visibility = (mode === 'build') ? 1 : 0;
       // Update distance labels visibility
       if (mode === 'view') {
         clearDistanceLabels();
@@ -1264,6 +1267,43 @@
         groundMat.diffuseColor = new BABYLON.Color3(0.82, 0.78, 0.72);
         groundMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
         ground.material = groundMat;
+
+        // Build mode grid overlay (1m major + 10cm minor)
+        gridPlane = BABYLON.MeshBuilder.CreateGround('gridPlane', { width: 10, height: 10 }, scene);
+        gridPlane.position.y = 0.001; // just above ground
+        gridPlane.isPickable = false;
+        var gridTexSize = 1024;
+        var gridTex = new BABYLON.DynamicTexture('gridTex', gridTexSize, scene, true);
+        var ctx = gridTex.getContext();
+        var cellsPerMeter = gridTexSize / 10; // 10m ground = 102.4px per meter
+        // Minor grid (10cm)
+        ctx.strokeStyle = 'rgba(100, 90, 80, 0.15)';
+        ctx.lineWidth = 0.5;
+        var minorStep = cellsPerMeter / 10;
+        for (var gx = 0; gx <= gridTexSize; gx += minorStep) {
+          ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, gridTexSize); ctx.stroke();
+        }
+        for (var gy = 0; gy <= gridTexSize; gy += minorStep) {
+          ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(gridTexSize, gy); ctx.stroke();
+        }
+        // Major grid (1m)
+        ctx.strokeStyle = 'rgba(80, 70, 60, 0.35)';
+        ctx.lineWidth = 1.5;
+        for (var mx = 0; mx <= gridTexSize; mx += cellsPerMeter) {
+          ctx.beginPath(); ctx.moveTo(mx, 0); ctx.lineTo(mx, gridTexSize); ctx.stroke();
+        }
+        for (var my = 0; my <= gridTexSize; my += cellsPerMeter) {
+          ctx.beginPath(); ctx.moveTo(0, my); ctx.lineTo(gridTexSize, my); ctx.stroke();
+        }
+        gridTex.update();
+        var gridMat = new BABYLON.StandardMaterial('gridMat', scene);
+        gridMat.diffuseTexture = gridTex;
+        gridMat.diffuseTexture.hasAlpha = true;
+        gridMat.useAlphaFromDiffuseTexture = true;
+        gridMat.specularColor = new BABYLON.Color3(0, 0, 0);
+        gridMat.backFaceCulling = false;
+        gridPlane.material = gridMat;
+        gridPlane.visibility = (editorMode === 'build') ? 1 : 0;
 
         // GUI voor labels
         guiTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI('UI', true, scene);
