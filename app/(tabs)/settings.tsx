@@ -1,6 +1,6 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 
 import {
   exportBackup,
@@ -200,7 +200,13 @@ export default function SettingsScreen() {
             variant="secondary"
           />
         </View>
-        {backupStatus ? <Text style={styles.statusText}>{backupStatus}</Text> : null}
+        {backupBusy && (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator size="small" color={palette.accent} />
+            <Text style={styles.loadingText}>{backupStatus || 'Bezig...'}</Text>
+          </View>
+        )}
+        {!backupBusy && backupStatus ? <Text style={styles.statusText}>{backupStatus}</Text> : null}
       </Card>
       <Card>
         <Text style={styles.sectionTitle}>Demo-data</Text>
@@ -279,5 +285,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     color: palette.text,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: palette.accent,
+    fontWeight: '500',
   },
 });
