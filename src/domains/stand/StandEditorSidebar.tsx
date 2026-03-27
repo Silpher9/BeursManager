@@ -91,7 +91,7 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
       <Text style={styles.sectionTitle}>Stand Editor</Text>
 
 
-      {sceneReady && (
+      {sceneReady && selectedSetupId && (
         <Pressable
           style={[styles.modeToggle, editorMode === 'view' && styles.modeToggleActive]}
           onPress={toggleEditorMode}
@@ -102,7 +102,13 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
         </Pressable>
       )}
 
-      {sceneReady && editorMode === 'build' && (
+      {sceneReady && !selectedSetupId && selectedFairId && (
+        <View style={styles.editorSection}>
+          <Text style={styles.lockedHint}>Kies of maak eerst een setup om te beginnen</Text>
+        </View>
+      )}
+
+      {sceneReady && selectedSetupId && editorMode === 'build' && (
         <>
           <View style={styles.undoRedoRow}>
             <Pressable
