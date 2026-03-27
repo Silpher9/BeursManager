@@ -95,6 +95,8 @@ De Stand tab draait BabylonJS in een WebView (`src/domains/stand/webview/scene.h
 
 **Lamp type defaults (#22):** "Maak default" promoveert huidige lamp-tuning naar persistente `lampTypeDefaults` per lamp-type (opgeslagen in StandDocument). Nieuwe lampen erven deze defaults. "Apply to all" past defaults toe op bestaande lampen. Drie lagen: runtime dev override (tijdelijk) → persistent type default → per-lamp instance. Defaults worden gereset bij beurs-switch en geladen uit config.
 
+**Meerdere setups per beurs (#27):** Elke beurs kan 0..n stand-setups hebben. Eén setup is actief per sessie. Save/load werkt op `setupId` (niet op `fairId`). Bij fair-selectie worden setups getoond; bij één setup wordt die automatisch geladen. Bestaande data is gemigreerd als "Hoofdsetup". **Waarom:** galeries willen meerdere indelingen vergelijken per beurs. De oude `1 config per fair (UNIQUE fair_id)` invariant geldt niet meer.
+
 **Wall dimension lock:** Wandafmetingen (breedte/hoogte/dikte) zijn geblokkeerd zodra er kunstwerken of lampen op de wand hangen. Gebruikers moeten eerst alle content verwijderen. **Waarom:** wall resize met children veroorzaakt geometrie-corruptie (Z-offset, parent-dispose, off-wall artworks). Verplaatsen/roteren van de wand blijft wel toegestaan.
 
 **Lamp transform-model:** Lamp mesh en target mesh zijn **wall-local** (children van wand-mesh). De BabylonJS `SpotLight` is een afgeleide **world-space** representatie die elke frame gesynchroniseerd wordt via `updateLampLight()`. `lampMoved` en `lampTargetMoved` zijn bewust aparte bridge-contracten: lamp-body beweegt over de rail (1D), target beweegt over het wandvlak (2D). Beide updaten alleen hun eigen veld in `PlacedLamp` (`position` resp. `target`).
