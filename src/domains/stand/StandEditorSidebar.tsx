@@ -28,6 +28,7 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
     redo,
     addWall,
     removeSelectedWall,
+    wallHasContent,
     updateWallDimension,
     toggleSnap,
     updateSnapDegrees,
@@ -125,36 +126,45 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
             </View>
           )}
 
-          {selectedWall && (
+          {selectedWall && (() => {
+            const locked = wallHasContent(selectedWall.id);
+            return (
             <View key={selectedWall.id} style={styles.editorSection}>
               <Text style={styles.label}>Geselecteerd</Text>
 
-              <View style={styles.fieldRow}>
+              {locked && (
+                <Text style={styles.lockedHint}>Verwijder eerst kunstwerken/lampen om afmetingen te wijzigen</Text>
+              )}
+
+              <View style={[styles.fieldRow, locked && { opacity: 0.3 }]}>
                 <Text style={styles.fieldLabel}>Breedte</Text>
                 <TextInput
                   style={styles.fieldInput}
                   keyboardType="numeric"
                   defaultValue={String(selectedWall.width)}
+                  editable={!locked}
                   onEndEditing={(e) => updateWallDimension(selectedWall.id, 'width', e.nativeEvent.text)}
                 />
               </View>
 
-              <View style={styles.fieldRow}>
+              <View style={[styles.fieldRow, locked && { opacity: 0.3 }]}>
                 <Text style={styles.fieldLabel}>Hoogte</Text>
                 <TextInput
                   style={styles.fieldInput}
                   keyboardType="numeric"
                   defaultValue={String(selectedWall.height)}
+                  editable={!locked}
                   onEndEditing={(e) => updateWallDimension(selectedWall.id, 'height', e.nativeEvent.text)}
                 />
               </View>
 
-              <View style={styles.fieldRow}>
+              <View style={[styles.fieldRow, locked && { opacity: 0.3 }]}>
                 <Text style={styles.fieldLabel}>Dikte</Text>
                 <TextInput
                   style={styles.fieldInput}
                   keyboardType="numeric"
                   defaultValue={String(selectedWall.depth)}
+                  editable={!locked}
                   onEndEditing={(e) => updateWallDimension(selectedWall.id, 'depth', e.nativeEvent.text)}
                 />
               </View>
@@ -165,7 +175,8 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
                 <Text style={styles.deleteButtonText}>Verwijder wand</Text>
               </Pressable>
             </View>
-          )}
+            );
+          })()}
 
           <View style={styles.separator} />
 
@@ -337,6 +348,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  lockedHint: {
+    color: '#e05555',
+    fontSize: 10,
+    fontStyle: 'italic' as const,
+    marginBottom: 4,
   },
   editorSection: {
     backgroundColor: 'rgba(255, 253, 249, 0.06)',

@@ -54,6 +54,7 @@ type StandEditorState = {
   dismissSnapSuggestion: () => void;
   addWall: () => void;
   removeSelectedWall: () => void;
+  wallHasContent: (wallId: string) => boolean;
   updateWallDimension: (wallId: string, field: 'width' | 'height' | 'depth', value: string) => void;
   handleWallMoved: (wallId: string, oldPos: Vec3, newPos: Vec3, oldRot: Vec3, newRot: Vec3) => void;
   undo: () => void;
@@ -172,9 +173,15 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     });
   }, [sendMessage, pushCommand]);
 
+  const wallHasContent = useCallback((wallId: string) => {
+    return placedArtworks.some(a => a.wallId === wallId) || placedLamps.some(l => l.wallId === wallId);
+  }, [placedArtworks, placedLamps]);
+
   const updateWallDimension = useCallback((wallId: string, field: 'width' | 'height' | 'depth', value: string) => {
     const num = parseInt(value, 10);
     if (isNaN(num) || num < 1 || num > 1000) return;
+    // Block resize when wall has artworks or lamps
+    if (wallHasContent(wallId)) return;
 
     setWalls(prev => {
       const wall = prev.find(w => w.id === wallId);
@@ -750,6 +757,7 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       applyDefaultsToAllLamps,
       addWall,
       removeSelectedWall,
+      wallHasContent,
       updateWallDimension,
       handleWallMoved,
       undo,
