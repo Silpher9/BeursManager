@@ -24,6 +24,12 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
     );
   `);
 
+  // Idempotent: altijd name kolom toevoegen als die ontbreekt (v7→v8 drift)
+  const scColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(stand_configurations)');
+  if (!scColumns.some((col) => col.name === 'name')) {
+    await db.execAsync(`ALTER TABLE stand_configurations ADD COLUMN name TEXT NOT NULL DEFAULT 'Hoofdsetup';`);
+  }
+
   if (currentDbVersion >= DATABASE_VERSION) {
     return;
   }
