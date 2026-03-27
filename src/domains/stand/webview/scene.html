@@ -175,6 +175,7 @@
       if (selectedWallId === wallId) {
         selectedWallId = null;
         if (gizmoManager) gizmoManager.attachToMesh(null);
+        clearRotationLabel();
         sendToApp({ type: 'wallSelected', wallId: null });
       }
     }
@@ -255,21 +256,73 @@
 
       if (selectedWallId === wallId && gizmoManager) {
         gizmoManager.attachToMesh(mesh);
+        // Re-link rotation label to new mesh
+        clearRotationLabel();
+        updateRotationLabel();
+      }
+    }
+
+    // --- Rotation angle feedback ---
+    var rotationLabel = null;
+
+    function updateRotationLabel() {
+      if (!guiTexture || !selectedWallId || editorMode !== 'build') {
+        clearRotationLabel();
+        return;
+      }
+      var entry = walls[selectedWallId];
+      if (!entry) return;
+      var rot = entry.mesh.rotationQuaternion
+        ? entry.mesh.rotationQuaternion.toEulerAngles().y
+        : entry.mesh.rotation.y;
+      var degrees = Math.round(rot * 180 / Math.PI) % 360;
+      if (degrees < 0) degrees += 360;
+
+      if (!rotationLabel) {
+        var rect = new BABYLON.GUI.Rectangle('rotLabel');
+        rect.width = '50px';
+        rect.height = '22px';
+        rect.cornerRadius = 6;
+        rect.color = 'transparent';
+        rect.background = 'rgba(64, 156, 255, 0.85)';
+        rect.thickness = 0;
+        var tb = new BABYLON.GUI.TextBlock();
+        tb.color = '#fff';
+        tb.fontSize = 12;
+        tb.fontWeight = 'bold';
+        rect.addControl(tb);
+        guiTexture.addControl(rect);
+        rect.linkWithMesh(entry.mesh);
+        rect.linkOffsetYInPixels = -50;
+        rotationLabel = { rect: rect, text: tb };
+      }
+      rotationLabel.text.text = degrees + '\u00B0';
+      rotationLabel.rect.linkWithMesh(entry.mesh);
+    }
+
+    function clearRotationLabel() {
+      if (rotationLabel) {
+        if (guiTexture) guiTexture.removeControl(rotationLabel.rect);
+        rotationLabel.rect.dispose();
+        rotationLabel = null;
       }
     }
 
     function selectWall(wallId) {
+      clearRotationLabel();
       selectedWallId = wallId;
       var entry = walls[wallId];
       if (entry && gizmoManager) {
         gizmoManager.attachToMesh(entry.mesh);
       }
+      updateRotationLabel();
       sendToApp({ type: 'wallSelected', wallId: wallId });
     }
 
     function deselectWall() {
       selectedWallId = null;
       if (gizmoManager) gizmoManager.attachToMesh(null);
+      clearRotationLabel();
       sendToApp({ type: 'wallSelected', wallId: null });
     }
 
@@ -394,6 +447,9 @@
       editorMode = mode;
       // Toggle grid visibility
       if (gridPlane) gridPlane.visibility = (mode === 'build') ? 1 : 0;
+      // Rotation label
+      if (mode === 'view') clearRotationLabel();
+      else updateRotationLabel();
       // Update distance labels visibility
       if (mode === 'view') {
         clearDistanceLabels();
@@ -1406,6 +1462,9 @@
             var m = walls[selectedWallId].mesh;
             dragStartPosition = { x: m.position.x, y: m.position.y, z: m.position.z };
             dragStartRotation = getEulerRotation(m);
+          });
+          rotGizmo.yGizmo.dragBehavior.onDragObservable.add(function () {
+            updateRotationLabel();
           });
           rotGizmo.yGizmo.dragBehavior.onDragEndObservable.add(function () {
             if (!selectedWallId || !walls[selectedWallId]) return;
