@@ -80,13 +80,92 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
 
   const selectedWall = walls.find(w => w.id === selectedWallId);
 
+  const activeFairName = fairs.find(f => f.id === selectedFairId)?.name ?? '';
+
   return (
     <View style={styles.container}>
-      <Pressable style={styles.backButton} onPress={onBack}>
-        <Text style={styles.backText}>← Terug</Text>
-      </Pressable>
+      <View style={styles.headerRow}>
+        <Pressable style={styles.backButton} onPress={onBack}>
+          <Text style={styles.backText}>←</Text>
+        </Pressable>
+        {selectedFairId && (
+          <Pressable style={styles.fairNameButton} onPress={() => {
+            if (hasUnsavedChanges) {
+              Alert.alert('Niet-opgeslagen wijzigingen', 'Wil je van beurs wisselen?', [
+                { text: 'Annuleer', style: 'cancel' },
+                { text: 'Wisselen', style: 'destructive', onPress: () => selectFair(null) },
+              ]);
+            } else { selectFair(null); }
+          }}>
+            <Text style={styles.fairNameText} numberOfLines={1}>{activeFairName}</Text>
+            <Text style={styles.fairChangeHint}>wijzig</Text>
+          </Pressable>
+        )}
+      </View>
+
+      {/* Setup sectie — prominent na beursnaam */}
+      {selectedFairId && setups.length > 0 && (
+        <>
+          <Text style={styles.label}>Setup</Text>
+          {setups.map(s => (
+            <Pressable
+              key={s.id}
+              style={[styles.fairItem, selectedSetupId === s.id && styles.fairItemActive]}
+              onPress={() => {
+                if (s.id === selectedSetupId) return;
+                if (hasUnsavedChanges) {
+                  Alert.alert('Niet-opgeslagen wijzigingen', 'Wil je wisselen zonder op te slaan?', [
+                    { text: 'Annuleer', style: 'cancel' },
+                    { text: 'Wisselen', style: 'destructive', onPress: () => selectSetup(s.id) },
+                  ]);
+                  return;
+                }
+                selectSetup(s.id);
+              }}
+            >
+              <Text style={[styles.fairItemText, selectedSetupId === s.id && styles.fairItemTextActive]} numberOfLines={1}>
+                {s.name}
+              </Text>
+            </Pressable>
+          ))}
+          <View style={styles.setupActions}>
+            <Pressable style={styles.setupActionBtn} onPress={() => {
+              const doCreate = () => createNewSetup(`Setup ${setups.length + 1}`);
+              if (hasUnsavedChanges) {
+                Alert.alert('Niet-opgeslagen wijzigingen', 'Wil je een nieuwe setup maken?', [
+                  { text: 'Annuleer', style: 'cancel' },
+                  { text: 'Doorgaan', style: 'destructive', onPress: doCreate },
+                ]);
+              } else { doCreate(); }
+            }}>
+              <Text style={styles.setupActionText}>+ Nieuw</Text>
+            </Pressable>
+            {selectedSetupId && (
+              <Pressable style={styles.setupActionBtn} onPress={() => {
+                Alert.alert('Setup verwijderen?', 'Weet je zeker?', [
+                  { text: 'Annuleer', style: 'cancel' },
+                  { text: 'Verwijder', style: 'destructive', onPress: deleteCurrentSetup },
+                ]);
+              }}>
+                <Text style={[styles.setupActionText, { color: '#e05555' }]}>Verwijder</Text>
+              </Pressable>
+            )}
+          </View>
+        </>
+      )}
+      {selectedFairId && setups.length === 0 && (
+        <Pressable style={styles.saveButton} onPress={() => createNewSetup('Hoofdsetup')}>
+          <Text style={styles.saveButtonText}>Nieuwe setup</Text>
+        </Pressable>
+      )}
 
       <View style={styles.separator} />
+
+      {sceneReady && !selectedSetupId && selectedFairId && (
+        <View style={styles.editorSection}>
+          <Text style={styles.lockedHint}>Kies of maak eerst een setup om te beginnen</Text>
+        </View>
+      )}
 
       <Text style={styles.sectionTitle}>Stand Editor</Text>
 
@@ -280,89 +359,8 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
         </>
       )}
 
-      {/* Beurs-selectie onderaan, vaste hoogte */}
+      {/* Opslaan onderaan */}
       <View style={styles.fairSection}>
-        <View style={styles.separator} />
-        <Text style={styles.label}>Beurs</Text>
-        <ScrollView style={styles.fairList} nestedScrollEnabled>
-          {fairs.map(fair => (
-            <Pressable
-              key={fair.id}
-              style={[styles.fairItem, selectedFairId === fair.id && styles.fairItemActive]}
-              onPress={() => handleFairSelect(fair.id)}
-            >
-              <Text style={[styles.fairItemText, selectedFairId === fair.id && styles.fairItemTextActive]} numberOfLines={1}>
-                {fair.name}
-              </Text>
-            </Pressable>
-          ))}
-          {fairs.length === 0 && (
-            <Text style={styles.fairEmptyText}>Geen beurzen gevonden</Text>
-          )}
-        </ScrollView>
-        {selectedFairId && setups.length > 0 && (
-          <>
-            <View style={styles.separator} />
-            <Text style={styles.label}>Setup</Text>
-            {setups.map(s => (
-              <Pressable
-                key={s.id}
-                style={[styles.fairItem, selectedSetupId === s.id && styles.fairItemActive]}
-                onPress={() => {
-                  if (s.id === selectedSetupId) return;
-                  if (hasUnsavedChanges) {
-                    Alert.alert('Niet-opgeslagen wijzigingen', 'Wil je wisselen zonder op te slaan?', [
-                      { text: 'Annuleer', style: 'cancel' },
-                      { text: 'Wisselen', style: 'destructive', onPress: () => selectSetup(s.id) },
-                    ]);
-                    return;
-                  }
-                  selectSetup(s.id);
-                }}
-              >
-                <Text style={[styles.fairItemText, selectedSetupId === s.id && styles.fairItemTextActive]} numberOfLines={1}>
-                  {s.name}
-                </Text>
-              </Pressable>
-            ))}
-            <View style={styles.setupActions}>
-              <Pressable style={styles.setupActionBtn} onPress={() => {
-                const doCreate = () => createNewSetup(`Setup ${setups.length + 1}`);
-                if (hasUnsavedChanges) {
-                  Alert.alert('Niet-opgeslagen wijzigingen', 'Wil je een nieuwe setup maken zonder op te slaan?', [
-                    { text: 'Annuleer', style: 'cancel' },
-                    { text: 'Doorgaan', style: 'destructive', onPress: doCreate },
-                  ]);
-                } else { doCreate(); }
-              }}>
-                <Text style={styles.setupActionText}>+ Nieuw</Text>
-              </Pressable>
-              {selectedSetupId && (
-                <Pressable style={styles.setupActionBtn} onPress={() => {
-                  Alert.alert('Setup verwijderen?', 'Weet je zeker dat je deze setup wilt verwijderen?', [
-                    { text: 'Annuleer', style: 'cancel' },
-                    { text: 'Verwijder', style: 'destructive', onPress: deleteCurrentSetup },
-                  ]);
-                }}>
-                  <Text style={[styles.setupActionText, { color: '#e05555' }]}>Verwijder</Text>
-                </Pressable>
-              )}
-            </View>
-          </>
-        )}
-        {selectedFairId && setups.length === 0 && (
-          <Pressable style={styles.saveButton} onPress={() => {
-            const doCreate = () => createNewSetup('Hoofdsetup');
-            if (hasUnsavedChanges) {
-              Alert.alert('Niet-opgeslagen wijzigingen', 'Huidige wijzigingen gaan verloren.', [
-                { text: 'Annuleer', style: 'cancel' },
-                { text: 'Doorgaan', style: 'destructive', onPress: doCreate },
-              ]);
-            } else { doCreate(); }
-          }}>
-            <Text style={styles.saveButtonText}>Nieuwe setup</Text>
-          </Pressable>
-        )}
         {selectedSetupId && (
           <Pressable style={styles.saveButton} onPress={saveCurrentConfig}>
             <Text style={styles.saveButtonText}>
@@ -380,14 +378,31 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 8,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   backButton: {
     paddingVertical: 8,
     paddingHorizontal: 4,
   },
   backText: {
     color: INACTIVE_TINT,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '500',
+  },
+  fairNameButton: {
+    flex: 1,
+  },
+  fairNameText: {
+    color: ACTIVE_TINT,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  fairChangeHint: {
+    color: INACTIVE_TINT,
+    fontSize: 10,
   },
   separator: {
     height: 1,
