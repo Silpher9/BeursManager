@@ -80,7 +80,7 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [walls, setWalls] = useState<WallConfig[]>([]);
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
-  const [snapEnabled, setSnapEnabled] = useState(false);
+  const [snapEnabled, setSnapEnabled] = useState(true);
   const [snapDegrees, setSnapDegrees] = useState(15);
   const [sceneReady, setSceneReady] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode>('build');
