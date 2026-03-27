@@ -154,7 +154,15 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
         </>
       )}
       {selectedFairId && setups.length === 0 && (
-        <Pressable style={styles.saveButton} onPress={() => createNewSetup('Hoofdsetup')}>
+        <Pressable style={styles.saveButton} onPress={() => {
+          const doCreate = () => createNewSetup('Hoofdsetup');
+          if (hasUnsavedChanges) {
+            Alert.alert('Niet-opgeslagen wijzigingen', 'Huidige wijzigingen gaan verloren.', [
+              { text: 'Annuleer', style: 'cancel' },
+              { text: 'Doorgaan', style: 'destructive', onPress: doCreate },
+            ]);
+          } else { doCreate(); }
+        }}>
           <Text style={styles.saveButtonText}>Nieuwe setup</Text>
         </Pressable>
       )}
@@ -179,12 +187,6 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
             {editorMode === 'build' ? '👁 View mode' : '🔧 Build mode'}
           </Text>
         </Pressable>
-      )}
-
-      {sceneReady && !selectedSetupId && selectedFairId && (
-        <View style={styles.editorSection}>
-          <Text style={styles.lockedHint}>Kies of maak eerst een setup om te beginnen</Text>
-        </View>
       )}
 
       {sceneReady && selectedSetupId && editorMode === 'build' && (
