@@ -206,7 +206,7 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       });
       return prev.map(w => w.id === wallId ? updated : w);
     });
-  }, [sendMessage, pushCommand]);
+  }, [wallHasContent, sendMessage, pushCommand]);
 
   const handleWallMoved = useCallback((wallId: string, oldPos: Vec3, newPos: Vec3, oldRot: Vec3, newRot: Vec3) => {
     wallTransforms.current[wallId] = { position: newPos, rotation: newRot };
