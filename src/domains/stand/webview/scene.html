@@ -185,10 +185,19 @@
       var pos = entry.mesh.position.clone();
       var rotQ = entry.mesh.rotationQuaternion ? entry.mesh.rotationQuaternion.clone() : null;
       var rot = entry.mesh.rotation.clone();
-      // Detach children (artworks + lamps) before disposing old wall mesh
-      var children = entry.mesh.getChildMeshes(true); // direct children only
-      for (var ci = 0; ci < children.length; ci++) {
-        children[ci].parent = null;
+      // Detach artwork + lamp meshes before disposing old wall mesh
+      // (artworks have front plane children that must stay attached to artwork box)
+      var artIds = Object.keys(placedArtworks);
+      for (var di = 0; di < artIds.length; di++) {
+        if (placedArtworks[artIds[di]].wallId === wallId) {
+          placedArtworks[artIds[di]].mesh.parent = null;
+        }
+      }
+      for (var lampIdD in placedLamps) {
+        if (placedLamps[lampIdD].wallId === wallId) {
+          placedLamps[lampIdD].mesh.parent = null;
+          placedLamps[lampIdD].targetMesh.parent = null;
+        }
       }
       if (entry.mesh.material) entry.mesh.material.dispose();
       entry.mesh.dispose();
