@@ -45,7 +45,12 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
     devToolsVisible,
     toggleDevTools,
     selectedFairId,
+    selectedSetupId,
+    setups,
     selectFair,
+    selectSetup,
+    createNewSetup,
+    deleteCurrentSetup,
     saveCurrentConfig,
     hasUnsavedChanges,
   } = useStandEditor();
@@ -289,7 +294,70 @@ export function StandEditorSidebar({ onBack }: { onBack: () => void }) {
             <Text style={styles.fairEmptyText}>Geen beurzen gevonden</Text>
           )}
         </ScrollView>
-        {selectedFairId && (
+        {selectedFairId && setups.length > 0 && (
+          <>
+            <View style={styles.separator} />
+            <Text style={styles.label}>Setup</Text>
+            {setups.map(s => (
+              <Pressable
+                key={s.id}
+                style={[styles.fairItem, selectedSetupId === s.id && styles.fairItemActive]}
+                onPress={() => {
+                  if (s.id === selectedSetupId) return;
+                  if (hasUnsavedChanges) {
+                    Alert.alert('Niet-opgeslagen wijzigingen', 'Wil je wisselen zonder op te slaan?', [
+                      { text: 'Annuleer', style: 'cancel' },
+                      { text: 'Wisselen', style: 'destructive', onPress: () => selectSetup(s.id) },
+                    ]);
+                    return;
+                  }
+                  selectSetup(s.id);
+                }}
+              >
+                <Text style={[styles.fairItemText, selectedSetupId === s.id && styles.fairItemTextActive]} numberOfLines={1}>
+                  {s.name}
+                </Text>
+              </Pressable>
+            ))}
+            <View style={styles.setupActions}>
+              <Pressable style={styles.setupActionBtn} onPress={() => {
+                const doCreate = () => createNewSetup(`Setup ${setups.length + 1}`);
+                if (hasUnsavedChanges) {
+                  Alert.alert('Niet-opgeslagen wijzigingen', 'Wil je een nieuwe setup maken zonder op te slaan?', [
+                    { text: 'Annuleer', style: 'cancel' },
+                    { text: 'Doorgaan', style: 'destructive', onPress: doCreate },
+                  ]);
+                } else { doCreate(); }
+              }}>
+                <Text style={styles.setupActionText}>+ Nieuw</Text>
+              </Pressable>
+              {selectedSetupId && (
+                <Pressable style={styles.setupActionBtn} onPress={() => {
+                  Alert.alert('Setup verwijderen?', 'Weet je zeker dat je deze setup wilt verwijderen?', [
+                    { text: 'Annuleer', style: 'cancel' },
+                    { text: 'Verwijder', style: 'destructive', onPress: deleteCurrentSetup },
+                  ]);
+                }}>
+                  <Text style={[styles.setupActionText, { color: '#e05555' }]}>Verwijder</Text>
+                </Pressable>
+              )}
+            </View>
+          </>
+        )}
+        {selectedFairId && setups.length === 0 && (
+          <Pressable style={styles.saveButton} onPress={() => {
+            const doCreate = () => createNewSetup('Hoofdsetup');
+            if (hasUnsavedChanges) {
+              Alert.alert('Niet-opgeslagen wijzigingen', 'Huidige wijzigingen gaan verloren.', [
+                { text: 'Annuleer', style: 'cancel' },
+                { text: 'Doorgaan', style: 'destructive', onPress: doCreate },
+              ]);
+            } else { doCreate(); }
+          }}>
+            <Text style={styles.saveButtonText}>Nieuwe setup</Text>
+          </Pressable>
+        )}
+        {selectedSetupId && (
           <Pressable style={styles.saveButton} onPress={saveCurrentConfig}>
             <Text style={styles.saveButtonText}>
               {hasUnsavedChanges ? 'Opslaan *' : 'Opslaan'}
@@ -406,6 +474,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
+  },
+  setupActions: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 4,
+  },
+  setupActionBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 253, 249, 0.06)',
+  },
+  setupActionText: {
+    color: INACTIVE_TINT,
+    fontSize: 11,
+    fontWeight: '500',
   },
   fairSection: {
     marginTop: 'auto' as unknown as number,

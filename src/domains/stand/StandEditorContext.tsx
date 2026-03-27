@@ -4,7 +4,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import type { WebView } from 'react-native-webview';
 
 import type { AppToWebViewMessage, EditorCommand, EditorMode, LampDefaults, PlacedArtwork, PlacedLamp, SnapSuggestion, Vec3, WallConfig } from './types';
-import { type StandDocument, saveStandConfig, loadStandConfig } from './repository';
+import { type StandDocument, type StandSetupItem, saveStandConfig, loadStandConfig, listSetups, createSetup, renameSetup, duplicateSetup, deleteSetup } from './repository';
 
 type StandEditorState = {
   walls: WallConfig[];
@@ -17,7 +17,14 @@ type StandEditorState = {
   canUndo: boolean;
   canRedo: boolean;
   selectedFairId: string | null;
+  selectedSetupId: number | null;
+  setups: StandSetupItem[];
   selectFair: (fairId: string | null) => Promise<void>;
+  selectSetup: (setupId: number) => Promise<void>;
+  createNewSetup: (name: string) => Promise<void>;
+  renameCurrentSetup: (name: string) => Promise<void>;
+  duplicateCurrentSetup: (name: string) => Promise<void>;
+  deleteCurrentSetup: () => Promise<void>;
   saveCurrentConfig: () => Promise<void>;
   hasUnsavedChanges: boolean;
   replayTransforms: () => void;
@@ -90,6 +97,8 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
   const [history, setHistory] = useState<EditorCommand[]>([]);
   const [redoStack, setRedoStack] = useState<EditorCommand[]>([]);
   const [selectedFairId, setSelectedFairId] = useState<string | null>(null);
+  const [selectedSetupId, setSelectedSetupId] = useState<number | null>(null);
+  const [setups, setSetups] = useState<StandSetupItem[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [artworkPanelVisible, setArtworkPanelVisible] = useState(false);
   const [devToolsVisible, setDevToolsVisible] = useState(false);
@@ -591,12 +600,7 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     }
   }, [sendMessage]);
 
-  const selectFair = useCallback(async (fairId: string | null) => {
-    setSelectedFairId(fairId);
-    setHasUnsavedChanges(false);
-
-    // Clear current state
-    // Remove existing scene objects
+  const clearSceneState = useCallback(() => {
     placedLamps.forEach(l => sendMessage({ type: 'removeLamp', lampId: l.id }));
     walls.forEach(w => sendMessage({ type: 'removeWall', wallId: w.id }));
     setWalls([]);
@@ -611,12 +615,10 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
     setHistory([]);
     setRedoStack([]);
     wallTransforms.current = {};
+    setHasUnsavedChanges(false);
+  }, [placedLamps, walls, sendMessage]);
 
-    if (!fairId) return;
-
-    // Load config for this fair
-    const config = await loadStandConfig(db, fairId);
-    if (!config) return;
+  const loadConfigIntoScene = useCallback((config: StandDocument) => {
 
     const loadedWalls: WallConfig[] = [];
     for (const wall of config.walls) {
@@ -681,10 +683,79 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [db, walls, sendMessage]);
+  }, [sendMessage]);
+
+  const selectFair = useCallback(async (fairId: string | null) => {
+    clearSceneState();
+    setSelectedFairId(fairId);
+    setSelectedSetupId(null);
+    setSetups([]);
+
+    if (!fairId) return;
+
+    // List setups for this fair
+    const fairSetups = await listSetups(db, fairId);
+    setSetups(fairSetups);
+
+    // Auto-select first setup if only one exists
+    if (fairSetups.length === 1) {
+      const config = await loadStandConfig(db, fairSetups[0].id);
+      if (config) {
+        loadConfigIntoScene(config);
+        setSelectedSetupId(fairSetups[0].id);
+      }
+    }
+  }, [db, clearSceneState, loadConfigIntoScene]);
+
+  const selectSetup = useCallback(async (setupId: number) => {
+    clearSceneState();
+    setSelectedSetupId(setupId);
+
+    const config = await loadStandConfig(db, setupId);
+    if (config) loadConfigIntoScene(config);
+  }, [db, clearSceneState, loadConfigIntoScene]);
+
+  const createNewSetup = useCallback(async (name: string) => {
+    if (!selectedFairId) return;
+    const id = await createSetup(db, selectedFairId, name);
+    const fairSetups = await listSetups(db, selectedFairId);
+    setSetups(fairSetups);
+    setSelectedSetupId(id);
+    clearSceneState();
+  }, [db, selectedFairId, clearSceneState]);
+
+  const renameCurrentSetup = useCallback(async (name: string) => {
+    if (!selectedSetupId) return;
+    await renameSetup(db, selectedSetupId, name);
+    if (selectedFairId) {
+      const fairSetups = await listSetups(db, selectedFairId);
+      setSetups(fairSetups);
+    }
+  }, [db, selectedSetupId, selectedFairId]);
+
+  const duplicateCurrentSetup = useCallback(async (name: string) => {
+    if (!selectedSetupId || !selectedFairId) return;
+    const newId = await duplicateSetup(db, selectedSetupId, name);
+    const fairSetups = await listSetups(db, selectedFairId);
+    setSetups(fairSetups);
+    // Switch to the duplicate
+    clearSceneState();
+    setSelectedSetupId(newId);
+    const config = await loadStandConfig(db, newId);
+    if (config) loadConfigIntoScene(config);
+  }, [db, selectedSetupId, selectedFairId, clearSceneState, loadConfigIntoScene]);
+
+  const deleteCurrentSetup = useCallback(async () => {
+    if (!selectedSetupId || !selectedFairId) return;
+    await deleteSetup(db, selectedSetupId);
+    clearSceneState();
+    setSelectedSetupId(null);
+    const fairSetups = await listSetups(db, selectedFairId);
+    setSetups(fairSetups);
+  }, [db, selectedSetupId, selectedFairId, clearSceneState]);
 
   const saveCurrentConfig = useCallback(async () => {
-    if (!selectedFairId) return;
+    if (!selectedSetupId) return;
 
     const doc: StandDocument = {
       walls: walls.map(w => ({
@@ -696,9 +767,14 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       lamps: placedLamps,
       lampTypeDefaults: Object.keys(lampTypeDefaults).length > 0 ? lampTypeDefaults : undefined,
     };
-    await saveStandConfig(db, selectedFairId, doc);
+    await saveStandConfig(db, selectedSetupId, doc);
     setHasUnsavedChanges(false);
-  }, [db, selectedFairId, walls, placedArtworks, placedLamps, lampTypeDefaults]);
+    // Refresh setups list to update timestamps
+    if (selectedFairId) {
+      const fairSetups = await listSetups(db, selectedFairId);
+      setSetups(fairSetups);
+    }
+  }, [db, selectedSetupId, selectedFairId, walls, placedArtworks, placedLamps, lampTypeDefaults]);
 
   const registerWebView = useCallback((ref: WebView | null) => {
     webViewRef.current = ref;
@@ -724,7 +800,14 @@ export function StandEditorProvider({ children }: { children: ReactNode }) {
       canUndo: history.length > 0,
       canRedo: redoStack.length > 0,
       selectedFairId,
+      selectedSetupId,
+      setups,
       selectFair,
+      selectSetup,
+      createNewSetup,
+      renameCurrentSetup,
+      duplicateCurrentSetup,
+      deleteCurrentSetup,
       saveCurrentConfig,
       hasUnsavedChanges,
       replayTransforms,

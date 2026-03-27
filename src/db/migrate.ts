@@ -1,7 +1,7 @@
 import { type SQLiteDatabase } from 'expo-sqlite';
 import { Platform } from 'react-native';
 
-export const DATABASE_VERSION = 7;
+export const DATABASE_VERSION = 8;
 
 export async function migrateDbIfNeeded(db: SQLiteDatabase) {
   const result = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -16,7 +16,8 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS stand_configurations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      fair_id TEXT NOT NULL UNIQUE,
+      fair_id TEXT NOT NULL,
+      name TEXT NOT NULL DEFAULT 'Hoofdsetup',
       config_json TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       FOREIGN KEY (fair_id) REFERENCES fairs(id) ON DELETE CASCADE
@@ -219,6 +220,33 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_contact_artworks_fair_id ON contact_artworks(fair_id);
     `);
+  }
+
+  if (currentDbVersion < 8) {
+    // Migrate stand_configurations: remove UNIQUE on fair_id, add name column
+    // SQLite doesn't support DROP CONSTRAINT, so recreate the table
+    const hasNameColumn = await db.getAllAsync<{ name: string }>('PRAGMA table_info(stand_configurations)');
+    const nameExists = hasNameColumn.some((col) => col.name === 'name');
+
+    if (!nameExists) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS stand_configurations_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          fair_id TEXT NOT NULL,
+          name TEXT NOT NULL DEFAULT 'Hoofdsetup',
+          config_json TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (fair_id) REFERENCES fairs(id) ON DELETE CASCADE
+        );
+
+        INSERT INTO stand_configurations_new (id, fair_id, name, config_json, updated_at)
+          SELECT id, fair_id, 'Hoofdsetup', config_json, updated_at FROM stand_configurations;
+
+        DROP TABLE IF EXISTS stand_configurations;
+
+        ALTER TABLE stand_configurations_new RENAME TO stand_configurations;
+      `);
+    }
   }
 
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
