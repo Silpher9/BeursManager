@@ -24,10 +24,32 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
     );
   `);
 
-  // Idempotent: altijd name kolom toevoegen als die ontbreekt (v7→v8 drift)
+  // Idempotent: fix schema drift (v7→v8)
   const scColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(stand_configurations)');
   if (!scColumns.some((col) => col.name === 'name')) {
     await db.execAsync(`ALTER TABLE stand_configurations ADD COLUMN name TEXT NOT NULL DEFAULT 'Hoofdsetup';`);
+  }
+
+  // Idempotent: remove UNIQUE constraint on fair_id if still present (v7 leftover)
+  const indexes = await db.getAllAsync<{ name: string; unique: number }>(
+    `PRAGMA index_list(stand_configurations)`
+  );
+  const hasUniqueOnFairId = indexes.some((idx) => idx.unique === 1);
+  if (hasUniqueOnFairId) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS stand_configurations_v8 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fair_id TEXT NOT NULL,
+        name TEXT NOT NULL DEFAULT 'Hoofdsetup',
+        config_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (fair_id) REFERENCES fairs(id) ON DELETE CASCADE
+      );
+      INSERT OR IGNORE INTO stand_configurations_v8 (id, fair_id, name, config_json, updated_at)
+        SELECT id, fair_id, COALESCE(name, 'Hoofdsetup'), config_json, updated_at FROM stand_configurations;
+      DROP TABLE stand_configurations;
+      ALTER TABLE stand_configurations_v8 RENAME TO stand_configurations;
+    `);
   }
 
   if (currentDbVersion >= DATABASE_VERSION) {
