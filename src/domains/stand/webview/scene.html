@@ -185,6 +185,11 @@
       var pos = entry.mesh.position.clone();
       var rotQ = entry.mesh.rotationQuaternion ? entry.mesh.rotationQuaternion.clone() : null;
       var rot = entry.mesh.rotation.clone();
+      // Detach children (artworks + lamps) before disposing old wall mesh
+      var children = entry.mesh.getChildMeshes(true); // direct children only
+      for (var ci = 0; ci < children.length; ci++) {
+        children[ci].parent = null;
+      }
       if (entry.mesh.material) entry.mesh.material.dispose();
       entry.mesh.dispose();
 
@@ -209,17 +214,34 @@
       entry.config.width = width;
       entry.config.height = height;
       entry.config.depth = depth;
-      // Re-parent child artworks to new mesh
+      // Re-parent child artworks to new mesh + fix Z for new wall depth
+      var newWallDepth = cmToM(depth);
+      var artworkDepth = 0.02; // 2cm artwork box depth
       var artworkIds = Object.keys(placedArtworks);
       for (var ai = 0; ai < artworkIds.length; ai++) {
         var artEntry = placedArtworks[artworkIds[ai]];
         if (artEntry.wallId === wallId) {
           artEntry.mesh.parent = mesh;
+          // Recalculate Z to sit on wall surface with new depth
+          var side = artEntry.mesh.position.z >= 0 ? 1 : -1;
+          artEntry.mesh.position.z = side * (newWallDepth / 2 + artworkDepth / 2);
+        }
+      }
+      // Re-parent lamps to new mesh + fix Z
+      for (var lampId in placedLamps) {
+        var lampEntry = placedLamps[lampId];
+        if (lampEntry.wallId === wallId) {
+          lampEntry.mesh.parent = mesh;
+          lampEntry.targetMesh.parent = mesh;
+          // Recalculate lamp Z for new depth
+          var lampSide = lampEntry.mesh.position.z >= 0 ? 1 : -1;
+          lampEntry.mesh.position.z = lampSide * (newWallDepth / 2 + 0.40);
+          lampEntry.targetMesh.position.z = lampSide * (newWallDepth / 2 + 0.001);
         }
       }
       createLabel(wallId);
-      updateDistanceLabels(); // wall resize may change artwork-to-edge distances
-      updateAllLampReceiversOnWall(wallId); // wall mesh rebuilt, refresh receiver refs
+      updateDistanceLabels();
+      updateAllLampReceiversOnWall(wallId);
 
       if (selectedWallId === wallId && gizmoManager) {
         gizmoManager.attachToMesh(mesh);
